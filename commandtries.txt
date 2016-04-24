@@ -1,0 +1,34 @@
+/summon FallingSand ~2 ~1 ~1 {Block:command_block,Time:1,TileEntityData:{Command:/fill ~5 ~1 ~5 ~10 ~5 ~10 planks 0 hollow},Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~0 ~-1 ~1 ~0 ~5 ~1 redstone_block},Passengers:[{id:FallingSand,Block:redstone_block,Time:1}]}]}
+/summon FallingSand ~2 ~1 ~1 {Block:command_block,Time:1,TileEntityData:{Command:/fill ~5 ~1 ~5 ~10 ~5 ~10 planks 0 hollow},Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~0 ~-2 ~1 ~0 ~5 ~1 redstone_block},Passengers:[{id:FallingSand,Block:redstone_block,Time:1}]}]}
+
+
+
+
+
+
+
+
+/summon FallingSand ~2 ~1 ~1 {Block:stone,Time:1}
+/summon FallingSand ~2 ~1 ~1 {Block:stone,Time:1,Passengers:[{id:FallingSand,Block:stone,Time:1}]}
+
+
+
+/summon FallingSand ~2 ~1 ~1 {Block:stone,Time:1
+,Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~5 ~1 ~5 ~10 ~5 ~10 planks 0 hollow}
+,Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~0 ~-1 ~1 ~0 ~5 ~1 redstone_block}
+,Passengers:[{id:FallingSand,Block:redstone_block,Time:1
+}]}]}]}
+
+
+/summon FallingSand ~2 ~1 ~1 {Block:stone,Time:1,Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~5 ~1 ~5 ~10 ~5 ~10 planks 0 hollow},Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~0 ~-1 ~1 ~0 ~5 ~1 redstone_block},Passengers:[{id:FallingSand,Block:redstone_block,Time:1}]}]}]}
+
+
+
+
+
+House
+/summon FallingSand ~2 ~1 ~1 {Block:stone,Time:1,Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~5 ~1 ~5 ~10 ~5 ~10 planks 0 hollow},Passengers:[{id:FallingSand,Block:command_block,Time:1,TileEntityData:{Command:/fill ~0 ~-1 ~1 ~0 ~-1 ~1 redstone_block},Passengers:[{id:FallingSand,Block:redstone_block,Time:1}]}]}]}
+
+
+
+/summon FallingSand ~2 ~1 ~1 {Block:command_block,Time:1,Data:1,Passengers:[{id:FallingSand,Block:chain_command_block,Time:1,Data:1}]}

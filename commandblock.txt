@@ -1,0 +1,15 @@
+Impulse/Chain/Repeat
+Click the "Impulse/Chain/Repeat" button to change the command block's type. The default state is "Impulse", but non-default command blocks can be placed. The command block also changes color:
+"Impulse" blocks are orange. These are the 'standard' command blocks, which function exactly like their previous incarnations, executing once every time they are activated.
+"Chain" blocks are green. These execute only after the command block pointing to it is processed. This differs from the Conditional option in that it detects what is pointing to it, instead of simply behind it. The command blocks pointing to it also need not be chain blocks themselves to trigger the chain.
+"Repeat" blocks are purple. These will execute their commands once per tick as long as they are activated, reducing the importance of redstone clock devices.
+Conditional/Unconditional
+
+Top: Command blocks in "Unconditional" mode. Bottom: Command blocks in "Conditional" mode.
+Click the "Conditional/Unconditional" button to change the command block's conditional behavior:
+"Conditional": The command block should only execute its command if the command block behind it executed successfully ("behind it" in the sense of opposite to the direction the command block is facing, regardless of chain direction or even if chaining is occurring).
+"Unconditional" (default): The command block should ignore the block behind it.
+Always Active/Needs Redstone
+Click the "Always Active/Needs Redstone" button to change the command block's activation requirements:
+"Needs Redstone" (the default for impulse command blocks): The command block must be activated as a redstone mechanism to execute commands.
+"Always Active" (the default for chain and repeat command blocks): The command block is always active even without redstone activation (chain command blocks will execute their command when chained, repeating command blocks will execute their command every game tick (20 times every second), and impulse command blocks activate once then cannot be activated again).
