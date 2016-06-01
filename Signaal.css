@@ -1,0 +1,5 @@
+canvas { border: 1px solid black; }
+table, th, td {
+    border: 1px dotted #C0C0C0;
+    border-collapse: collapse;
+}

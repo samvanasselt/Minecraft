@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Signaal analyse</title>
+    <link   href="Signaal.css" type="text/css" rel="stylesheet" />
+    <script src ="Signaal.js"  type="text/javascript" ></script>
+</head> 
+<body onload="Signaal()">
+    <p id="foutmelding"></p>
+    <hr>
+    <form>
+        <label for="weegfactor">Weegfactor</label>
+        <input id ="weegfactor" type="text" value="20">
+        <button type="button" onclick="ClockSignals()">Clock Signals</button>
+        <button type="button" onclick="InstructionClockSignals()">Instruction Clock Signals</button>
+        <button type="button" onclick="LockedRepeaterSignals()">Locked Repeater Signals</button>
+    </form>
+    <hr><p id="resultaat"></p>
+    <hr>
+    <canvas id="canvasSignaal" width="1400" height="600">
+        Canvas wordt niet ondersteund door deze browser
+    </canvas>
+    <hr><p id="uitvoer"></p>
+    <hr><p id="knooppunten"></p>
+</body>
+</html>
