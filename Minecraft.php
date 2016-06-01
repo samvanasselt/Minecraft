@@ -91,10 +91,11 @@
     echo '<button type="button" onclick="mcRedstoneTower()">Redstone Tower</button>';
     echo '<button type="button" onclick="mcHouse()">House</button>';
     echo '<hr>';
-    echo '<canvas id="Laag-1" width="200" height="200">Canvas wordt niet ondersteund door deze browser</canvas> ';
-    echo '<canvas id="Laag-2" width="200" height="200">Canvas wordt niet ondersteund door deze browser</canvas> ';
-    echo '<canvas id="Laag-3" width="200" height="200">Canvas wordt niet ondersteund door deze browser</canvas> ';
-    echo '<canvas id="Laag-4" width="200" height="200">Canvas wordt niet ondersteund door deze browser</canvas> ';
+    echo '<canvas id="Laag-1" width="300" height="300">Canvas wordt niet ondersteund door deze browser</canvas> ';
+    echo '<canvas id="Laag-2" width="300" height="300">Canvas wordt niet ondersteund door deze browser</canvas> ';
+    echo '<canvas id="Laag-3" width="300" height="300">Canvas wordt niet ondersteund door deze browser</canvas> ';
+    echo '<canvas id="Laag-4" width="300" height="300">Canvas wordt niet ondersteund door deze browser</canvas> ';
+    echo '<canvas id="Alles"  width="300" height="300">Canvas wordt niet ondersteund door deze browser</canvas> ';
     echo '<p id="mcCommand"></p>';
     echo '<p id="mcCommandLines"></p>';
     echo '</body>';
