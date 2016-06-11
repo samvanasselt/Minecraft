@@ -1,28 +1,54 @@
-    var ctx;
+    var gSignalCanvas;
+    var gLayerCanvasses = [];
     var gComponents = [];
     var gDisplay = [];
     var w = 8;
-function initCanvas() {
+    var xScale = 15;
+    var zScale = 15;
+// ========================================================================== //
+function initSignalCanvas() {
     var canvas = document.getElementById('canvasSignaal');
     if (canvas.getContext){
-        ctx = canvas.getContext('2d');
+        gSignalCanvas = canvas.getContext('2d');
         var h = 16;
         var x0 = 100;
-        ctx.font="10px Verdana";
+        gSignalCanvas.font="10px Verdana";
         try { for (var y = 10; y < 600; y += 25) {
             for (var x = x0; x < 1500; x += w) {
-                ctx.strokeStyle = 'rgb(224,224,224)';
-                ctx.beginPath();
-                ctx.rect(x,y,w,h);
-                ctx.stroke();
+                gSignalCanvas.strokeStyle = 'rgb(224,224,224)';
+                gSignalCanvas.beginPath();
+                gSignalCanvas.rect(x,y,w,h);
+                gSignalCanvas.stroke();
                 if ((x - x0) % (10 * w) == 0) {
-                    ctx.strokeStyle = 'rgb(192,192,192)';
-                    ctx.beginPath();
-                    ctx.rect(x,y,1,25);
-                    ctx.stroke();
+                    gSignalCanvas.strokeStyle = 'rgb(192,192,192)';
+                    gSignalCanvas.beginPath();
+                    gSignalCanvas.rect(x,y,1,25);
+                    gSignalCanvas.stroke();
                 }
         }}}
         catch(err) { alert(err);}
+    }
+}
+function initLayerCanvas(pCanvasnaam) {
+    var canvas = document.getElementById(pCanvasnaam);
+    if (canvas.getContext){
+        var ctx = canvas.getContext('2d');
+        var dx = 0;
+        ctx.font="3px Verdana";
+        ctx.strokeStyle = 'rgb(199,199,199)';
+        // ctx.fillStyle = "rgb(223,223,223)";
+        // ctx.fillRect (0,0,20*xScale,20*zScale);
+        ctx.fillStyle = "rgb(207,207,207)";
+        try { for (var z = 0; z < 20*zScale; z += zScale) {
+            for (var x = 0; x < 20*xScale; x += 2 * xScale) {
+                dx = z % (2 * zScale);
+                // ctx.fillRect (x + dx,z,xScale,zScale);
+                ctx.beginPath(); ctx.rect(x,z,xScale,zScale);          ctx.stroke();
+                ctx.beginPath(); ctx.rect(x + xScale,z,xScale,zScale); ctx.stroke();
+                ctx.beginPath(); ctx.rect(x + dx,z,xScale,zScale);     ctx.stroke();
+        }}}   
+        catch(err) { alert(err);}
+        gLayerCanvasses.push(ctx);
     }
 }
 // ========================================================================== //
@@ -30,27 +56,29 @@ function ShowError(pHTML) {
      document.getElementById("foutmelding").innerHTML += pHTML;
 }
 // ========================================================================== //
-function cComponent(pKind, pDelay = 0, pPower = 0) {
-    var Name;
-    var Kind;
+function cBlock(pBlock, pDelay = 0, pPower = 0) {
+    var Block;      // Blocktype
+    var Kind;       // Subtype (damage)
+    var X,Y,Z;      // Location
+    var Signal;
     var Delay;
-    var PowerLastDisplay;
-    var Display;
     var Power = [];
+    var PowerLastDraw;
     var SourceNames = [];
     var Sources = [];
+    var Display;    // ### Obsolete ### //
 
-    this.Kind = pKind;
+    this.Block = pBlock;
     this.Display = false;
-    this.PowerLastDisplay = 0;
+    this.PowerLastDraw = 0;
     this.Reset(pDelay, pPower);
 }
-cComponent.prototype.Reset = function (pDelay = 0, pPower = 0) {
+cBlock.prototype.Reset = function (pDelay = 0, pPower = 0) {
     this.Delay = pDelay;
     this.Power = [];
     for (var i = 0; i < this.Delay + 1; i++) {this.Power.push(pPower);}
 }
-cComponent.prototype.SetSources = function () {
+cBlock.prototype.SetSources = function () {
     var args = Array.from(arguments);
     this.Sources = [];
     if (args.length > 0) {
@@ -63,67 +91,67 @@ cComponent.prototype.SetSources = function () {
         else            { this.Sources.push(gComponents[lIndex]); }
     }
 }
-cComponent.prototype.Tick = function () {
+cBlock.prototype.Tick = function () {
     for (var i = 0; i < this.Delay; i++) {this.Power[i] = this.Power[i+1];}
 }
-cComponent.prototype.Draw = function (t, pRow) {
+cBlock.prototype.DrawSignal = function (t, pRow) {
     if (this.Display) {
         var x = 100 + w * t;
         var y = 25 * pRow - this.Power[0];
-        ctx.strokeStyle = (pRow % 2 == 0) ? 'rgb(0,0,128)' : 'rgb(0,0,0)';
-        ctx.beginPath();
-        ctx.moveTo(x     , 25 * pRow - this.PowerLastDisplay);
-        ctx.lineTo(x     , y);
-        ctx.lineTo(x + w, y);
-        // ctx.rect(100 + 10 * t, 25 * pRow - this.Power[0],10,1);
-        ctx.stroke();
-        this.PowerLastDisplay = this.Power[0];
+        gSignalCanvas.strokeStyle = (pRow % 2 == 0) ? 'rgb(0,0,128)' : 'rgb(0,0,0)';
+        gSignalCanvas.beginPath();
+        gSignalCanvas.moveTo(x     , 25 * pRow - this.PowerLastDraw);
+        gSignalCanvas.lineTo(x     , y);
+        gSignalCanvas.lineTo(x + w, y);
+        // gSignalCanvas.rect(100 + 10 * t, 25 * pRow - this.Power[0],10,1);
+        gSignalCanvas.stroke();
+        this.PowerLastDraw = this.Power[0];
         return pRow + 1;
     } else {
         return pRow;
     }
 }
-cComponent.prototype.ToonNaam = function (pRow) {
-    ctx.fillText(this.Name, 15, 25 * pRow);
-    ctx.fillText(this.Kind, 50, 25 * pRow);
+cBlock.prototype.ToonNaam = function (pRow) {
+    gSignalCanvas.fillText(this.Signal, 15, 25 * pRow);
+    gSignalCanvas.fillText(this.Block, 50, 25 * pRow);
 }
-cComponent.prototype.ErrorMessage = function (pError) {
+cBlock.prototype.ErrorMessage = function (pError) {
     var lHTML = '';
      if (pError != 'OK') { lHTML += '<br/><b>' + pError + '</b>'; }
-     lHTML += '<br/>' + this.Name;
-     lHTML += ' | ' + this.Kind;
+     lHTML += '<br/>' + this.Signal;
+     lHTML += ' | ' + this.Block;
      lHTML += ' | ' + this.Delay + ' Power: ';
      for (var i = 0; i < this.Delay + 1; i++) { lHTML += ' ' + this.Power[i]; }
      lHTML += ' | ' + this.Sources.length + ' Sources: ';
-     for (var i = 0; i < this.Sources.length; i++) { lHTML += ' ' + this.Sources[i].Name; }
+     for (var i = 0; i < this.Sources.length; i++) { lHTML += ' ' + this.Sources[i].Signal; }
      ShowError(lHTML);
 }
 // ========================================================================== //
-function cInverter(pName, pSourceNames) {
-    this.Name = pName;
+function cInverter(pSignal, pSourceNames) {
+    this.Signal = pSignal;
     this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
     this.Reset(1, 15);
 }
-cInverter.prototype = new cComponent('inverter', 1, 15);
+cInverter.prototype = new cBlock('inverter', 1, 15);
 cInverter.prototype.SetInput = function () {
     this.Power[this.Delay] = (this.Sources[0].Power[0] == 0) ? 15 :  0;
 }
 cInverter.prototype.Dump = function () {
      var lHTML = '';
-     lHTML += this.Kind;
+     lHTML += this.Block;
      lHTML += ' ' + this.Delay;
      lHTML += ' ' + this.Timer;
      for (var i = 0; i < this.Delay + 1; i++) { lHTML += ' ' + this.Power[i]; }
      return lHTML;
 }
 // ========================================================================== //
-function cRepeater(pName, pSourceNames, pDelay, pPower = 0) {
-    this.Name = pName;
+function cRepeater(pSignal, pSourceNames, pDelay, pPower = 0) {
+    this.Signal = pSignal;
     // this.Locked = false;
     this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
     this.Reset(pDelay, pPower);
 }
-cRepeater.prototype = new cComponent('repeater', 1, 0);
+cRepeater.prototype = new cBlock('repeater', 1, 0);
 cRepeater.prototype.SetInput = function () {
     try {
         var lLocked = false;
@@ -141,23 +169,23 @@ cRepeater.prototype.SetInput = function () {
     catch (err) { this.ErrorMessage(err); }
 }
 // ========================================================================== //
-function cWire(pName, pLength = 1) {
+function cWire(pSignal, pLength = 1) {
     var Wirelength;
     this.Wirelength = pLength;
-    this.Name = pName;
+    this.Signal = pSignal;
     this.Reset(0, 0);
 }
-cWire.prototype = new cComponent('wire', 0, 0);
+cWire.prototype = new cBlock('wire', 0, 0);
 cWire.prototype.SetInput = function () {
     this.Power[this.Delay] = (this.Sources[0].Power[0] > this.Wirelength) ? this.Sources[0].Power[0] - this.Wirelength : 0;
 }
 // ========================================================================== //
-function cOr(pName, pSourceNames) {
-    this.Name = pName;
+function cOr(pSignal, pSourceNames) {
+    this.Signal = pSignal;
     this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
     this.Reset(0, 0);
 }
-cOr.prototype = new cComponent('or', 0, 0);
+cOr.prototype = new cBlock('or', 0, 0);
 cOr.prototype.SetInput = function () {
     this.Power[this.Delay] = 0;
     for (var i = 0; i < this.Sources.length; i++) {
@@ -166,21 +194,21 @@ cOr.prototype.SetInput = function () {
     }}
 }
 // ========================================================================== //
-function cLever(pName) {
-    this.Name = pName;
+function cLever(pSignal) {
+    this.Signal = pSignal;
     this.SourceNames = [];
     this.Reset(0, 0);
 }
-cLever.prototype = new cComponent('lever', 0, 0);
+cLever.prototype = new cBlock('lever', 0, 0);
 cLever.prototype.SetInput = function () {}
 cLever.prototype.Off = function () { this.Power[0] =  0; }
 cLever.prototype.On  = function () { this.Power[0] = 15; }
 // ========================================================================== //
-function ComponentIndex (pName) {
+function ComponentIndex (pSignal) {
     var lIndex = -1;
     var i = 0;
     while (lIndex == -1 && i < gComponents.length) {
-        if (gComponents[i].Name == pName) {lIndex = i;}
+        if (gComponents[i].Signal == pSignal) {lIndex = i;}
         i++;
     }
     return lIndex;
@@ -317,7 +345,12 @@ function CheckComponentsAndDisplay() {
 }
 // ========================================================================== //
 function Signaal() {
-    initCanvas();
+    initSignalCanvas();
+    initLayerCanvas('Laag-1');
+    initLayerCanvas('Laag-2');
+    initLayerCanvas('Laag-3');
+    initLayerCanvas('Laag-4');
+    initLayerCanvas('Alles');
     CheckComponentsAndDisplay();
     for (var i = 0; i < gDisplay.length; i++) {
         try { gComponents[ComponentIndex(gDisplay[i])].Display = true; }
@@ -325,7 +358,7 @@ function Signaal() {
     }
     var lRow = 1;
     for (var i = 0; i < gDisplay.length; i++) {
-        ctx.fillText(ComponentIndex(gDisplay[i]), 0, 25 * lRow);
+        gSignalCanvas.fillText(ComponentIndex(gDisplay[i]), 0, 25 * lRow);
         gComponents [ComponentIndex(gDisplay[i])].ToonNaam(lRow);
         lRow++;
     }
@@ -334,7 +367,7 @@ function Signaal() {
         if (t == 10 && ComponentIndex('RST') > 0) { gComponents[ComponentIndex('RST')].Off(); }
         if (t == 14 && ComponentIndex('LR' ) > 0) { gComponents[ComponentIndex('LR')].Reset(1,15); }
         for (var i = 0; i < gComponents.length; i++) { gComponents[i].SetInput();  }
-        for (var i = 0; i < gDisplay.length; i++) { lRow = gComponents[ComponentIndex(gDisplay[i])].Draw(t,lRow); }
+        for (var i = 0; i < gDisplay.length; i++) { lRow = gComponents[ComponentIndex(gDisplay[i])].DrawSignal(t,lRow); }
         for (var i = 0; i < gComponents.length; i++) { gComponents[i].Tick();      }
     }
 }
