@@ -1,21 +1,21 @@
     var ctx;
     var gComponents = [];
     var gDisplay = [];
+    var w = 8;
 function initCanvas() {
     var canvas = document.getElementById('canvasSignaal');
     if (canvas.getContext){
         ctx = canvas.getContext('2d');
-        var w = 10;
         var h = 16;
-        var dx = 0;
+        var x0 = 100;
         ctx.font="10px Verdana";
         try { for (var y = 10; y < 600; y += 25) {
-            for (var x = 100; x < 1500; x += w) {
+            for (var x = x0; x < 1500; x += w) {
                 ctx.strokeStyle = 'rgb(224,224,224)';
                 ctx.beginPath();
                 ctx.rect(x,y,w,h);
                 ctx.stroke();
-                if (x % (10 * w) == 0) {
+                if ((x - x0) % (10 * w) == 0) {
                     ctx.strokeStyle = 'rgb(192,192,192)';
                     ctx.beginPath();
                     ctx.rect(x,y,1,25);
@@ -68,13 +68,13 @@ cComponent.prototype.Tick = function () {
 }
 cComponent.prototype.Draw = function (t, pRow) {
     if (this.Display) {
-        var x = 100 + 10 * t;
+        var x = 100 + w * t;
         var y = 25 * pRow - this.Power[0];
         ctx.strokeStyle = (pRow % 2 == 0) ? 'rgb(0,0,128)' : 'rgb(0,0,0)';
         ctx.beginPath();
         ctx.moveTo(x     , 25 * pRow - this.PowerLastDisplay);
         ctx.lineTo(x     , y);
-        ctx.lineTo(x + 10, y);
+        ctx.lineTo(x + w, y);
         // ctx.rect(100 + 10 * t, 25 * pRow - this.Power[0],10,1);
         ctx.stroke();
         this.PowerLastDisplay = this.Power[0];
@@ -117,11 +117,11 @@ cInverter.prototype.Dump = function () {
      return lHTML;
 }
 // ========================================================================== //
-function cRepeater(pName, pSourceNames, pDelay) {
+function cRepeater(pName, pSourceNames, pDelay, pPower = 0) {
     this.Name = pName;
     // this.Locked = false;
     this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
-    this.Reset(pDelay, 0);
+    this.Reset(pDelay, pPower);
 }
 cRepeater.prototype = new cComponent('repeater', 1, 0);
 cRepeater.prototype.SetInput = function () {
@@ -278,18 +278,29 @@ function LockedRepeaterSignals() {
 }
 // ========================================================================== //
 function FlipFlopInit() {
-    gComponents.push(new cInverter( 'FF.In'     , [ 'CK'   ]   ));
-    gComponents.push(new cRepeater( 'FF.R1.Lock', [ 'CK'   ], 1));
-    gComponents.push(new cRepeater( 'FF.R2.Lock', [ 'FF.In'], 1));
-    gComponents.push(new cRepeater( 'FF.R1'     , ['-FF.R2', 'FF.R1.Lock'], 1));
-    gComponents.push(new cRepeater( 'FF.R2'     , [ 'FF.R1', 'FF.R2.Lock'], 1));
-    gComponents.push(new cInverter('-FF.R2'     , [ 'FF.R2']   ));
+    // FF1
+    gComponents.push(new cInverter( 'FF1.In'     , [ 'CK'    ]   ));
+    gComponents.push(new cRepeater( 'FF1.R1.Lock', [ 'CK'    ], 1));
+    gComponents.push(new cRepeater( 'FF1.R2.Lock', [ 'FF1.In'], 1));
+    gComponents.push(new cRepeater( 'FF1.R1'     , ['-FF1.R2', 'FF1.R1.Lock'], 1, 15));
+    gComponents.push(new cRepeater( 'FF1.R2'     , [ 'FF1.R1', 'FF1.R2.Lock'], 1));
+    gComponents.push(new cInverter('-FF1.R2'     , [ 'FF1.R2']   ));
+    // FF2
+    gComponents.push(new cInverter( 'FF2.In'     , [ 'CK'    ]   ));
+    gComponents.push(new cRepeater( 'FF2.R1.Lock', [ 'CK'    ], 1));
+    gComponents.push(new cRepeater( 'FF2.R2.Lock', [ 'FF2.In'], 1));
+    gComponents.push(new cInverter('-FF2.R1'     , [ 'FF2.R1']   ));
+    gComponents.push(new cRepeater( 'FF2.R1'     , [ 'FF2.R2', 'FF2.R1.Lock'], 1));
+    gComponents.push(new cRepeater( 'FF2.R2'     , ['-FF2.R1', 'FF2.R2.Lock'], 1));
 }
 function FlipFlopSignals() {
     gComponents = [];
     ClockInit();
     FlipFlopInit();
-    gDisplay = ['CK', 'FF.In', 'FF.R1.Lock', 'FF.R2.Lock', 'FF.R1', 'FF.R2', '-FF.R2'];
+    gDisplay = ['CK','FF1.R2','FF2.R1'
+               // , 'FF1.In', 'FF1.R1.Lock', 'FF1.R2.Lock', 'FF1.R1', 'FF1.R2', '-FF1.R2'
+               // , 'FF2.In', 'FF2.R1.Lock', 'FF2.R2.Lock', 'FF2.R1', 'FF2.R2', '-FF2.R1'
+               ];
     Signaal();
 }
 // ========================================================================== //
@@ -318,7 +329,7 @@ function Signaal() {
         gComponents [ComponentIndex(gDisplay[i])].ToonNaam(lRow);
         lRow++;
     }
-    for (t = 0; t < 140; t++) {
+    for (t = 0; t < 1400/w; t++) {
         var lRow = 1;
         if (t == 10 && ComponentIndex('RST') > 0) { gComponents[ComponentIndex('RST')].Off(); }
         if (t == 14 && ComponentIndex('LR' ) > 0) { gComponents[ComponentIndex('LR')].Reset(1,15); }
