@@ -80,7 +80,7 @@ function initCanvasses() {
     initSignalCanvas();
     gLayerCanvasses = [];
     initLayerCanvas('Alles');
-    for (var i = 1; i <= 8; i++) { initLayerCanvas('Laag-' + i); }
+    for (var i = 1; i <= 16; i++) { initLayerCanvas('Laag-' + i); }
 }
 // ========================================================================== //
 function ShowError(pHTML) {
@@ -352,7 +352,7 @@ function cRepeater(pXYZ, pOrientation, pDelay, pSignalName, pSignalSourceNames) 
     this.Location  = new cLocation(pXYZ);
     this.BlockInfo = new cBlockInfo('repeater', this.Subtype());
     this.PowerInfo = new cPowerInfo(this, 0, pDelay, pSignalName, pSignalSourceNames);
-    new cBlock(LocationBelow(pXYZ), 'support', 0);
+    // new cBlock(LocationBelow(pXYZ), 'support', 0);
     gBlocks.push(this);
 }
 cRepeater.prototype.Subtype = function () {
@@ -519,7 +519,7 @@ function cWireBlock(pXYZ, pDirectionString = 'EWNS', pBlocktype = 'support', pSu
     }
     this.BlockInfo = new cBlockInfo(pBlocktype,pSubtype);
     this.PowerInfo = new cPowerInfo(this, 0, 0, lSignalName, lSignalSourceNames);
-    new cBlock(LocationBelow(pXYZ), pBlocktype, pSubtype);
+    // new cBlock(LocationBelow(pXYZ), pBlocktype, pSubtype);
     gBlocks.push(this);
 }
 cWireBlock.prototype.SetInput = function () {
@@ -624,7 +624,8 @@ function addBlockAndComponent(pBlocktype) {
 function ClockInit(pDelay = 4) {
     gBlocks = [];
     gSignals = [];
-    new cWireBlock([1,3,0], 'EW', 'sandstone', 0,'-CKb'  ,['-CK' ]);
+    new cWireBlock([1,3,0], 'EW', 'sandstone', 0,'-CKw'  ,['-CK' ]);
+    new cBlock    ([1,2,0], 'sandstone', 0,'-CKb'  ,['-CKw' ]);
     new cRedTorch ([0,2,0], 'W'           ,' CK'   ,['-CKb']);
     new cRepeater ([1,2,1], 'E', pDelay   ,'-CK'   ,[' CK' ]);
     new cWireBlock([2,2,0], 'WS');
