@@ -13,10 +13,19 @@
     var zScale = 20;
     var gStyleWire = 'rgb(255,64,64)';
 // ========================================================================== //
+function cUnit(pIndexFirstBlock = 0) {
+    var IndexFirstBlock;
+    var IndexLastBlock;
+    this.IndexFirstBlock = pIndexFirstBlock;
+}
+cUnit.prototype.SetIndexLastBlock = function(pIndexLastBlock) {this.IndexLastBlock = pIndexLastBlock;}
+// ========================================================================== //
 function initSignalCanvas() {
     var canvas = document.getElementById('canvasSignaal');
     if (canvas.getContext){
         gSignalCanvas = canvas.getContext('2d');
+        gSignalCanvas.setTransform(1, 0, 0, 1, 0, 0);
+        gSignalCanvas.clearRect(0, 0, canvas.width, canvas.height);
         var h = 16;
         var x0 = 100;
         gSignalCanvas.font="10px Verdana";
@@ -47,21 +56,31 @@ function initLayerCanvas(pCanvasnaam) {
     if (canvas.getContext){
         var ctx = canvas.getContext('2d');
         var dx = 0;
-        ctx.font="3px Verdana";
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font="10px Verdana";
         ctx.strokeStyle = 'rgb(199,199,199)';
         ctx.fillStyle = "rgb(207,207,207)";
         ctx.translate(0.5, 0.5);
-        try { for (var z = 0; z < 20*zScale; z += zScale) {
-            for (var x = 0; x < 20*xScale; x += 2 * xScale) {
+        try { for (var z = 0; z < canvas.height; z +=     zScale) {
+              for (var x = 0; x < canvas.width ; x += 2 * xScale) {
                 dx = z % (2 * zScale);
-                // ctx.fillRect (x + dx,z,xScale,zScale);
                 ctx.beginPath(); ctx.rect(x,z,xScale,zScale);          ctx.stroke();
                 ctx.beginPath(); ctx.rect(x + xScale,z,xScale,zScale); ctx.stroke();
                 ctx.beginPath(); ctx.rect(x + dx,z,xScale,zScale);     ctx.stroke();
-        }}}   
+            }
+            ctx.fillText(z / zScale - 1, canvas.width - 17, z - 7);
+        }}
         catch(err) { alert(err);}
+        for (var x = 0; x < 20*xScale; x += xScale) {ctx.fillText(x / xScale, x + 3, canvas.height - 7);}
         gLayerCanvasses.push(ctx);
     }
+}
+function initCanvasses() {
+    initSignalCanvas();
+    gLayerCanvasses = [];
+    initLayerCanvas('Alles');
+    for (var i = 1; i <= 8; i++) { initLayerCanvas('Laag-' + i); }
 }
 // ========================================================================== //
 function ShowError(pHTML) {
@@ -87,52 +106,67 @@ function cBlockInfo(pBlocktype = 'stone', pSubtype = '') {
     this.Blocktype = pBlocktype;
     this.Subtype   = pSubtype;
 }
-cBlockInfo.prototype.CommandTerm = function () { return (this.Subtype == '' ? this.Blocktype : this.Blocktype + this.Subtype) }
-cBlockInfo.prototype.DrawBlock = function (pLocation) {
+cBlockInfo.prototype.CommandTerm = function() { return (this.Subtype == '' ? this.Blocktype : this.Blocktype + this.Subtype) }
+cBlockInfo.prototype.DrawBlock = function(y, ctx, pLocation) {
+    lSubtype = (typeof this.Subtype == 'number') ? this.Subtype : parseInt(this.Subtype);
     switch(this.Blocktype) {
-        case 'stained_hardened_clay': switch(this.Subtype) {
+        case 'support': switch(lSubtype) {
+            default: lColor = 'rgba(240,240,240,1.0)'; break;
+        } break;
+        case 'stone': switch(lSubtype) {
+            case  0: lColor = 'rgba(192,192,192,0.3)'; break;
+            default: lColor = 'rgba(128,128,128,0.3)'; break;
+        } break;
+        case 'stained_hardened_clay': switch(lSubtype) {
             case  3: lColor = 'rgb(128,128,255)'; break;
             case  4: lColor = 'rgb(255,255,128)'; break;
             case 14: lColor = 'rgb(255,160,128)'; break;
         } break;
-        case 'stone_slab': switch(this.Subtype) {
+        case 'stone_slab': switch(lSubtype) {
             case  3: lColor = 'rgb(128,128,255)'; break;
             case  8: lColor = 'rgb(160,160,160)'; break;
             case 10: lColor = 'rgb(255,160,128)'; break;
         } break;
-        case 'stone_slab2': switch(this.Subtype) {
+        case 'stone_slab2': switch(lSubtype) {
             case  8: lColor = 'rgb(255,192,128)'; break;
         } break;
-        case 'planks': switch(this.Subtype) {
+        case 'planks': switch(lSubtype) {
             case  4: lColor = 'rgb(255,207,128)'; break;
         } break;
-        case 'wooden_slab': switch(this.Subtype) {
+        case 'wooden_slab': switch(lSubtype) {
             case 12: lColor = 'rgb(255,207,128)'; break;
         } break;
-        case 'sandstone': switch(this.Subtype) {
-            case  0: lColor = 'rgb(255,255,128)'; break;
+        case 'sandstone': switch(lSubtype) {
+            case  0: lColor = 'rgba(255,255,128,0.5)'; break;
         } break;
-        case 'red_sandstone': switch(this.Subtype) {
-            case  0: lColor = 'rgb(255,192,128)'; break;
-            case  8: lColor = 'rgb(128,128,128)'; break;
-            case 10: lColor = 'rgb(255,192,128)'; break;
+        case 'red_sandstone': switch(lSubtype) {
+            case  0: lColor = 'rgba(255,192,128,0.5)'; break;
+            case  8: lColor = 'rgba(128,128,128,0.5)'; break;
+            case 10: lColor = 'rgba(255,192,128,0.5)'; break;
         } break;
     }
-    if (0 < pLocation.Y && pLocation.Y < 5) {
+    // if (pLocation.Y && pLocation.Y < 5) {
+    if (pLocation.Y == y) {
         var lX = xScale * pLocation.X;
         var lZ = zScale * pLocation.Z;
         var lL = xScale;
         var lW = zScale;
-        var y = [pLocation.Y - 1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            gLayerCanvasses[y[i]].fillStyle = lColor;
-            gLayerCanvasses[y[i]].fillRect(lX, lZ, lL, lW);
-            gLayerCanvasses[y[i]].strokeStyle = 'rgb(128,128,128)';
-            gLayerCanvasses[y[i]].rect(lX, lZ, lL, lW);
-            gLayerCanvasses[y[i]].stroke();
-        }
-    }   
+        ctx.fillStyle = lColor;
+        ctx.fillRect(lX, lZ, lL, lW);
+        ctx.strokeStyle = 'rgb(128,128,128)';
+        ctx.rect(lX, lZ, lL, lW);
+        ctx.stroke();
+        // var y = [pLocation.Y - 1, 4];
+        // for (var i = 0; i < y.length; i++) {
+            // gLayerCanvasses[y[i]].fillStyle = lColor;
+            // gLayerCanvasses[y[i]].fillRect(lX, lZ, lL, lW);
+            // gLayerCanvasses[y[i]].strokeStyle = 'rgb(128,128,128)';
+            // gLayerCanvasses[y[i]].rect(lX, lZ, lL, lW);
+            // gLayerCanvasses[y[i]].stroke();
+        // }
+    }
 }
+function LocationBelow(pXYZ) { return [pXYZ[0],pXYZ[1] - 1,pXYZ[2]]; }
 // ========================================================================== //
 function cPowerInfo(pBlock, pInitialPower = 0, pDelay = 0, pSignalName = undefined, pSourceNames = undefined) {
     var Block;      //  The block whose power info this is
@@ -156,24 +190,26 @@ cPowerInfo.prototype.SetPower = function (pPower = 0) {
     this.PowerLastDraw = pPower;
 }
 cPowerInfo.prototype.SetSources = function () {
+    this.Sources = [];
     for (var i = 0; i < this.SourceNames.length; i++) {
-        var lIndex = SignalIndex(this.SourceNames[i]);
-        if (lIndex < 0) { ShowError('Geen component ' + this.SourceNames[i]); }
-        else            { this.Sources[i] = gSignals[lIndex].Block; }
+        lSourceName = this.SourceNames[i];
+        var lIndex = SignalIndex(lSourceName);
+        if (lIndex < 0) { if (lSourceName.length < 9) {ShowError('Geen component ' + lSourceName); }}
+        else            { this.Sources.push(gSignals[lIndex].Block); }
     }
 }
 cPowerInfo.prototype.SetInput = function () {
     if (this.Power.length > 0) {
         lSourcePower = 0;
         for (var i = 0; i < this.Sources.length; i++) {
-            if (lSourcePower < this.Sources[i].PowerInfo.Power[0]) 
+            if (lSourcePower < this.Sources[i].PowerInfo.Power[0])
                {lSourcePower = this.Sources[i].PowerInfo.Power[0]}
         }
         this.Power[this.Power.length - 1] = lSourcePower;
     }
 }
 cPowerInfo.prototype.Tick = function () {
-    for (var i = 0; i < this.Power.length; i++) {this.Power[i] = this.Power[i+1];}
+    for (var i = 0; i < this.Power.length - 1; i++) {this.Power[i] = this.Power[i+1];}
 }
 cPowerInfo.prototype.DrawSignal = function (t, pRow) {
     var x = 100 + w * t;
@@ -191,11 +227,11 @@ cPowerInfo.prototype.DrawName = function (pRow) {
     gSignalCanvas.fillText(this.SignalName, 5, 25 * pRow - 3);
 }
 // -------------------------------  //
-function SignalIndex (pSignalName) {
+function SignalIndex(pSignalName) {
     var lIndex = -1;
     var i = 0;
     while (lIndex == -1 && i < gSignals.length) {
-        if (gSignals[i].SignalName == pSignalName) {lIndex = i;}
+        if (gSignals[i].SignalName.trim() == pSignalName.trim()) {lIndex = i;}
         i++;
     }
     return lIndex;
@@ -206,21 +242,28 @@ function SetSignalsToShow() {
     var args;
     gSigShow = [];
     args = Array.from(arguments);
-    for (var i = 0; i < args.length; i++) { 
+    for (var i = 0; i < args.length; i++) {
         lIndex = SignalIndex(args[i]);
         if (lIndex >= 0) { gSigShow.push(gSignals[lIndex]); }
     }
 }
 // ========================================================================== //
+function PKlocation(pXYZ) {
+    lPK  = ("000" + pXYZ[0]).substr(-3,3);
+    lPK += ("000" + pXYZ[1]).substr(-3,3);
+    lPK += ("000" + pXYZ[2]).substr(-3,3);
+    return lPK;
+}
 function cLocation(pXYZ = [0,0,0]) {
     var PK;     // Primary Key = #XXXYYYZZZ
     var X,Y,Z;  // Location
-    this.SetLocation(pXYZ); 
+    this.SetLocation(pXYZ);
 }
 cLocation.prototype.SetLocation = function (pXYZ = [0,0,0]) {
-    this.X = pXYZ[0]; this.PK  = ("000" + this.X).substr(-3,3);    
-    this.Y = pXYZ[1]; this.PK += ("000" + this.Y).substr(-3,3);    
-    this.Z = pXYZ[2]; this.PK += ("000" + this.Z).substr(-3,3);    
+    this.X = pXYZ[0]; // this.PK  = ("000" + this.X).substr(-3,3);
+    this.Y = pXYZ[1]; // this.PK += ("000" + this.Y).substr(-3,3);
+    this.Z = pXYZ[2]; // this.PK += ("000" + this.Z).substr(-3,3);
+    this.PK = PKlocation(pXYZ);
 }
 // ========================================================================== //
 function cBlock(pXYZ, pBlocktype, pSubtype, pSignalName = undefined, pSignalSourceNames = undefined) {
@@ -231,233 +274,22 @@ function cBlock(pXYZ, pBlocktype, pSubtype, pSignalName = undefined, pSignalSour
     this.Location  = new cLocation(pXYZ);
     this.BlockInfo = new cBlockInfo(pBlocktype, pSubtype);
     this.PowerInfo = new cPowerInfo(this, 0, 0, pSignalName, pSignalSourceNames);
-    gBlocks.push(this); 
+    gBlocks.push(this);
 }
-cBlock.prototype.SetInput = function () { this.PowerInfo.SetInput(); }
-cBlock.prototype.DrawBlock = function () {
-    switch(this.BlockInfo.Blocktype) {
-        case 'stained_hardened_clay': switch(this.BlockInfo.Subtype) {
-            case  3: lColor = 'rgb(128,128,255)'; break;
-            case  4: lColor = 'rgb(255,255,128)'; break;
-            case 14: lColor = 'rgb(255,160,128)'; break;
-        } break;
-        case 'stone_slab': switch(this.BlockInfo.Subtype) {
-            case  3: lColor = 'rgb(128,128,255)'; break;
-            case  8: lColor = 'rgb(160,160,160)'; break;
-            case 10: lColor = 'rgb(255,160,128)'; break;
-        } break;
-        case 'stone_slab2': switch(this.BlockInfo.Subtype) {
-            case  8: lColor = 'rgb(255,192,128)'; break;
-        } break;
-        case 'planks': switch(this.BlockInfo.Subtype) {
-            case  4: lColor = 'rgb(255,207,128)'; break;
-        } break;
-        case 'wooden_slab': switch(this.BlockInfo.Subtype) {
-            case 12: lColor = 'rgb(255,207,128)'; break;
-        } break;
-        case 'sandstone': switch(this.BlockInfo.Subtype) {
-            case  0: lColor = 'rgb(255,255,128)'; break;
-        } break;
-        case 'red_sandstone': switch(this.BlockInfo.Subtype) {
-            case  0: lColor = 'rgb(255,192,128)'; break;
-            case  8: lColor = 'rgb(128,128,128)'; break;
-            case 10: lColor = 'rgb(255,192,128)'; break;
-        } break;
-    }
-    if (0 < this.Location.Y && this.Location.Y < 5) {
-        var lX = xScale * this.Location.X;
-        var lZ = zScale * this.Location.Z;
-        var lL = xScale;
-        var lW = zScale;
-        var y = [this.Location.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            gLayerCanvasses[y[i]].fillStyle = lColor;
-            gLayerCanvasses[y[i]].fillRect(lX, lZ, lL, lW);
-            gLayerCanvasses[y[i]].strokeStyle = 'rgb(128,128,128)';
-            gLayerCanvasses[y[i]].rect(lX, lZ, lL, lW);
-            gLayerCanvasses[y[i]].stroke();
-        }
-    }   
-}
-// ========================================================================== //
-function cSignalBlock(pOrientation = 'E', pXYZ, pBlocktype = 'stone', pSubtype = '', pSignal = '', pSourceNames = '', pDelay = 0, pPower = 0) {
-    var PK;         // Primary Key = #XXYYZZ
-    var Blocktype;      // Blocktype
-    var Subtype;       // Subtype (damage)
-    var X,Y,Z;      // Location
-    var Orientation;
-    var Signal;
-    var Delay;
-    var Power = [];
-    var PowerLastDraw;
-    var SourceNames = [];
-    var Sources = [];
-    var Display;    // ### Obsolete ### //
-    this.Blocktype = pBlocktype;         this.Subtype  = pSubtype;
-    this.Orientation = pOrientation; 
-    this.SetLocation(pXYZ); 
-    this.Signal = pSignal;       this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
-    this.Display = false;        // ### Obsolete ### //
-    this.Reset(pDelay, pPower);
-}
-cSignalBlock.prototype.SetLocation = function (pXYZ = [0,0,0]) {
-    this.X = pXYZ[0]; this.PK  = "x" + ("00" + this.X).substr(-2,2);    
-    this.Y = pXYZ[1]; this.PK += "y" + ("00" + this.Y).substr(-2,2);    
-    this.Z = pXYZ[2]; this.PK += "z" + ("00" + this.Z).substr(-2,2);    
-}
-cSignalBlock.prototype.DrawBlock = function () {
-    if (0 < this.Y && this.Y < 5) {
-        var lColor = 'rgb(64,64,64)';
-        var lX = xScale * this.X;
-        var lZ = zScale * this.Z;
-        var lL = xScale;
-        var lW = zScale;
-        var y = [this.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            gLayerCanvasses[y[i]].strokeStyle = 'rgb(128,128,128)';
-            gLayerCanvasses[y[i]].rect(lX, lZ, lL, lW);
-            gLayerCanvasses[y[i]].stroke();
-        }
-        lX += 1; lZ += 1; lL -= 2; lW -= 2;
-             if (this.Blocktype == 'repeater'          ) { lColor = 'rgb(255,128,128)'; lX += 1; lZ += 1; lL -= 2; lW -= 2;}
-        else if (this.Blocktype == 'redstone_torch'    ) { lColor = 'rgb(255, 64, 64)'; lX += 2; lZ += 2; lL -= 4; lW -= 4;}
-        switch(this.Blocktype) {
-            case 'stained_hardened_clay': switch(this.Subtype) {
-                case  3: lColor = 'rgb(128,128,255)'; break;
-                case  4: lColor = 'rgb(255,255,128)'; break;
-                case 14: lColor = 'rgb(255,160,128)'; break;
-            } break;
-            case 'stone_slab': switch(this.Subtype) {
-                case  3: lColor = 'rgb(128,128,255)'; break;
-                case  8: lColor = 'rgb(160,160,160)'; break;
-                case 10: lColor = 'rgb(255,160,128)'; break;
-            } break;
-            case 'stone_slab2': switch(this.Subtype) {
-                case  8: lColor = 'rgb(255,192,128)'; break;
-            } break;
-            case 'planks': switch(this.Subtype) {
-                case  4: lColor = 'rgb(255,207,128)'; break;
-            } break;
-            case 'wooden_slab': switch(this.Subtype) {
-                case 12: lColor = 'rgb(255,207,128)'; break;
-            } break;
-            case 'sandstone': switch(this.Subtype) {
-                case  0: lColor = 'rgb(255,255,128)'; break;
-            } break;
-            case 'red_sandstone': switch(this.Subtype) {
-                case  0: lColor = 'rgb(255,192,128)'; break;
-                case  8: lColor = 'rgb(128,128,128)'; break;
-                case 10: lColor = 'rgb(255,192,128)'; break;
-            } break;
-            case 'redstone_wire': lColor = 'rgb(255,128,128)'; break;
-        }
-        gLayerCanvasses[this.Y-1].fillStyle = lColor;
-        if (this.Blocktype == 'redstone_wire') {gLayerCanvasses[this.Y-1].fillRect(lX+3, lZ+3, lL-6, lW-6);}
-        else                               {gLayerCanvasses[this.Y-1].fillRect(lX, lZ, lL, lW);}
-        gLayerCanvasses[4].fillStyle = lColor;
-        if (this.Blocktype == 'redstone_wire') {gLayerCanvasses[4].fillRect(lX+3, lZ+3, lL-6, lW-6);}
-        else                               {gLayerCanvasses[4].fillRect(lX, lZ, lL, lW);}
-    }   
-}
-cSignalBlock.prototype.Reset = function (pDelay = 0, pPower = 0) {
-    this.Delay = pDelay;
-    this.Power = [];
-    this.PowerLastDraw = pPower;
-    for (var i = 0; i <= this.Delay; i++) {this.Power.push(pPower);}
-}
-cSignalBlock.prototype.SetSources = function () {
-    var args = Array.from(arguments);
-    this.Sources = [];
-    if (args.length > 0) {
-        this.SourceNames = [];
-        for (var i = 0; i < args.length; i++) { this.SourceNames.push(args[i]); }
-    }
-    for (var i = 0; i < this.SourceNames.length; i++) {
-        var lIndex = ComponentIndex(this.SourceNames[i]);
-        if (lIndex < 0) { ShowError('Geen component ' + this.SourceNames[i]); }
-        else            { this.Sources.push(gComponents[lIndex]); }
-    }
-}
-cSignalBlock.prototype.SetInput = function () {
-    if (this.Sources.length == 0) { this.Power[this.Delay] = 0;                        }
-    else                          { this.Power[this.Delay] = this.Sources[0].Power[0]; }
-}
-cSignalBlock.prototype.Tick = function () {
-    for (var i = 0; i < this.Delay; i++) {this.Power[i] = this.Power[i+1];}
-}
-cSignalBlock.prototype.DrawSignal = function (t, pRow) {
-    if (this.Display) {
-        var x = 100 + w * t;
-        var y = 25 * pRow - this.Power[0];
-        gSignalCanvas.strokeStyle = (pRow % 2 == 0) ? 'rgb(0,0,128)' : 'rgb(0,0,0)';
-        gSignalCanvas.beginPath();
-        gSignalCanvas.moveTo(x     , 25 * pRow - this.PowerLastDraw);
-        gSignalCanvas.lineTo(x     , y);
-        gSignalCanvas.lineTo(x + w, y);
-        // gSignalCanvas.rect(100 + 10 * t, 25 * pRow - this.Power[0],10,1);
-        gSignalCanvas.stroke();
-        this.PowerLastDraw = this.Power[0];
-        return pRow + 1;
-    } else {
-        return pRow;
-    }
-}
-cSignalBlock.prototype.ToonNaam = function (pRow) {
-    gSignalCanvas.fillText(this.Signal, 15, 25 * pRow);
-    gSignalCanvas.fillText(this.Blocktype, 50, 25 * pRow);
-}
-cSignalBlock.prototype.ErrorMessage = function (pError) {
+cBlock.prototype.SetInput  = function() { this.PowerInfo.SetInput(); }
+cBlock.prototype.DrawBlock = function(y, ctx) { this.BlockInfo.DrawBlock(y,ctx,this.Location); }
+cBlock.prototype.ErrorMessage = function (pError) {
     var lHTML = '';
-     if (pError != 'OK') { lHTML += '<br/><b>' + pError + '</b>'; }
-     lHTML += '<br/>' + this.Signal;
-     lHTML += ' | ' + this.Blocktype;
-     lHTML += ' | ' + this.Delay + ' Power: ';
-     for (var i = 0; i < this.Delay + 1; i++) { lHTML += ' ' + this.Power[i]; }
-     lHTML += ' | ' + this.Sources.length + ' Sources: ';
-     for (var i = 0; i < this.Sources.length; i++) { lHTML += ' ' + this.Sources[i].Signal; }
-     ShowError(lHTML);
+    var p = this.PowerInfo;
+    if (pError != 'OK') { lHTML += '<br/><b>' + pError + '</b>'; }
+    lHTML += '<br/>' + this.Signal;
+    lHTML += ' | ' + this.Blocktype + this.Subtype;
+    lHTML += ' | ' + p.Power.length + ' Power: ';
+    for (var i = 0; i < p.Power.length; i++) { lHTML += ' ' + p.Power[i]; }
+    lHTML += ' | ' + p.Sources.length + ' Sources: ';
+    for (var i = 0; i < p.Sources.length; i++) { lHTML += ' ' + p.Sources[i].PowerInfo.SignalName; }
+    ShowError(lHTML);
 }
-// ========================================================================== //
-function cRedTorchOld(pOrientation = 'E', pXYZ = [0,0,0], pBlocktype = '', pSubtype = '', pSignal = '', pSourceNames = '') {
-    if (pBlocktype == '') { this.Blocktype = 'redstone_torch'; }
-    this.SetLocation(pXYZ);
-    this.SetOrientation(pOrientation);
-    this.Signal = pSignal;
-    this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
-    this.Reset(1, 15);
-}
-cRedTorchOld.prototype = new cSignalBlock();
-cRedTorchOld.prototype.SetInput = function () {
-    this.Power[this.Delay] = (this.Sources[0].Power[0] == 0) ? 15 :  0;
-}
-cRedTorchOld.prototype.SetOrientation = function (pOrientation) {
-    this.Orientation = pOrientation;
-         if (pOrientation == 'E' ) { this.Subtype = 1; }
-    else if (pOrientation == 'W' ) { this.Subtype = 2; }
-    else if (pOrientation == 'S') { this.Subtype = 3; }
-    else if (pOrientation == 'N') { this.Subtype = 4; }
-    else if (pOrientation == 'U'   ) { this.Subtype = 5; }
-}
-cRedTorchOld.prototype.DrawBlock = function () {
-    var lX = xOffset + this.X * xScale + xScale/2;
-    var lZ = yOffset + this.Z * zScale + zScale/2;
-    if (0 < this.Y && this.Y < 5) {
-        var y = [this.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
-            var upperLine = [rotate(this.Orientation,[-xScale/2,-1]),rotate(this.Orientation,[-2,-1])];
-            var lowerLine = [rotate(this.Orientation,[-xScale/2,+1]),rotate(this.Orientation,[-2,+1])];
-            ctx.strokeStyle = gStyleWire;
-            ctx.beginPath();
-            ctx.rect(lX-2,lZ-2,4,4);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(lX + upperLine[0][0], lZ + upperLine[0][1]);
-            ctx.lineTo(lX + upperLine[1][0], lZ + upperLine[1][1]);
-            ctx.moveTo(lX + lowerLine[0][0], lZ + lowerLine[0][1]);
-            ctx.lineTo(lX + lowerLine[1][0], lZ + lowerLine[1][1]);
-            ctx.stroke();
-}   }   }
 // ========================================================================== //
 function cRedTorch(pXYZ, pOrientation, pSignalName, pSignalSourceNames) {
     var Location;
@@ -469,7 +301,7 @@ function cRedTorch(pXYZ, pOrientation, pSignalName, pSignalSourceNames) {
     this.Location  = new cLocation(pXYZ);
     this.BlockInfo = new cBlockInfo('redstone_torch', this.Subtype());
     this.PowerInfo = new cPowerInfo(this, 15, 1, pSignalName, pSignalSourceNames);
-    gBlocks.push(this); 
+    gBlocks.push(this);
 }
 cRedTorch.prototype.Subtype = function () {
     switch (this.Orientation) {
@@ -485,13 +317,14 @@ cRedTorch.prototype.SetInput = function () {
     lSourcePower = p.Sources[0].PowerInfo.Power[0];
     p.Power[p.Power.length - 1] = (lSourcePower == 0) ? 15 :  0;
 }
-cRedTorch.prototype.DrawBlock = function () {
+cRedTorch.prototype.DrawBlock = function(y,ctx) {
     var lX = xOffset + this.Location.X * xScale + xScale/2;
     var lZ = yOffset + this.Location.Z * zScale + zScale/2;
-    if (0 < this.Location.Y && this.Location.Y < 5) {
-        var y = [this.Location.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
+    // if (0 < this.Location.Y && this.Location.Y < 5) {
+    if (this.Location.Y == y) {
+        // var y = [this.Location.Y-1, 4];
+        // for (var i = 0; i < y.length; i++) {
+            // var ctx = gLayerCanvasses[y[i]];
             var upperLine = [rotate(this.Orientation,[-xScale/2,-1]),rotate(this.Orientation,[-2,-1])];
             var lowerLine = [rotate(this.Orientation,[-xScale/2,+1]),rotate(this.Orientation,[-2,+1])];
             ctx.strokeStyle = gStyleWire;
@@ -504,108 +337,8 @@ cRedTorch.prototype.DrawBlock = function () {
             ctx.moveTo(lX + lowerLine[0][0], lZ + lowerLine[0][1]);
             ctx.lineTo(lX + lowerLine[1][0], lZ + lowerLine[1][1]);
             ctx.stroke();
-}   }   }
-// ========================================================================== //
-function cInverter(pX,pY,pZ, pOrientation = 'E', pBlocktype = 'redstone_torch', pSubtype = '', pSignal = '', pSourceNames = '') {
-    this.Signal = pSignal;
-    this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
-    this.Reset(1, 15);
-}
-// cInverter.prototype = new cSignalBlock(pX,pY,pZ,pOrientation,'redstone_torch', '',pSignal,pSourceNames,1,15);
-cInverter.prototype = new cSignalBlock();
-cInverter.prototype.SetInput = function () {
-    this.Power[this.Delay] = (this.Sources[0].Power[0] == 0) ? 15 :  0;
-}
-cInverter.prototype.Dump = function () {
-     var lHTML = '';
-     lHTML += this.Blocktype;
-     lHTML += ' ' + this.Delay;
-     lHTML += ' ' + this.Timer;
-     for (var i = 0; i < this.Delay + 1; i++) { lHTML += ' ' + this.Power[i]; }
-     return lHTML;
-}
-// ========================================================================== //
-function cRepeaterOld(pOrientation = 'E', pXYZ= [0,0,0], pBlocktype = '', pSubtype = '', pSignal = '', pSourceNames = '', pDelay = 1, pPower = 0) {
-    if (pBlocktype == '') { this.Blocktype = 'repeater'; }
-    this.Signal = pSignal;
-    // this.Locked = false;
-    this.SetLocation(pXYZ);
-    this.SetOrientation(pOrientation);
-    this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
-    this.Reset(pDelay, pPower);
-}
-// cRepeaterOld.prototype = new cSignalBlock(pX,pY,pZ,pOrientation,'repeater', '',pSignal,pSourceNames,1,0);
-cRepeaterOld.prototype = new cSignalBlock();
-cRepeaterOld.prototype.SetOrientation = function (pOrientation) {
-    this.Orientation = pOrientation;
-         if (pOrientation == 'S') { this.Subtype = 0; }
-    else if (pOrientation == 'E') { this.Subtype = 1; }
-    else if (pOrientation == 'N') { this.Subtype = 2; }
-    else if (pOrientation == 'W') { this.Subtype = 3; }
-}
-cRepeaterOld.prototype.SetInput = function () {
-    try {
-        var lLocked = false;
-        for (var lLock = 1; lLock <= this.Sources.length - 1; lLock++) {
-            for (var s = 0; s <= this.Sources[lLock].Delay; s++) {
-                lLocked = lLocked || (this.Sources[lLock].Power[s] > 0);
-            }
-        }
-        if (this.Sources.length > 2) { lLocked = lLocked || (this.Sources[2].Power[this.Sources[2].Delay] > 0);}
-        if (this.Sources.length > 1) { lLocked = lLocked || (this.Sources[1].Power[this.Sources[1].Delay] > 0);}
-        if (lLocked)     { this.Locked = lLocked; }
-        // if (this.Locked) { this.Locked = lLocked; }
-        else             { this.Power[this.Delay] = (this.Sources[0].Power[0] == 0) ?  0 : 15; }
     }
-    catch (err) { this.ErrorMessage(err); }
-}
-cRepeaterOld.prototype.DrawBlock = function () {
-    var lX = xOffset + this.X * xScale + xScale/2;
-    var lZ = yOffset + this.Z * zScale + zScale/2;
-    var  inWire = [[-xScale/2,0],[-8,0]];
-    var outWire = [[ xScale/2,0],[+8,0]];
-    var wires = [inWire,outWire];
-    var triangle = [[-7,-8], [-7,+8], [+7, 0]];
-    var dots = [];
-    switch(this.Delay) {
-        case 1: dots = [[-2, 0]                        ]; break;
-        case 2: dots = [[-4, 0],        [ 0, 0]        ]; break;
-        case 3: dots = [[-4,-2],[-4,+2],[ 0, 0]        ]; break;
-        case 4: dots = [[-4,-3],[-4,+3],[-2, 0],[+1, 0]]; break;
-    }
-    if (0 < this.Y && this.Y < 5) {
-        var y = [this.Y-1, 4];        
-        for (var iY = 0; iY < y.length; iY++) {
-            var ctx = gLayerCanvasses[y[iY]];
-            ctx.strokeStyle = 'rgb(64,64,64)';
-            ctx.beginPath();
-            for (var i = 0; i < triangle.length; i++) {
-                var vector = rotate(this.Orientation,triangle[i]);
-                var x = lX + vector[0];
-                var z = lZ + vector[1];
-                if (i == 0) { ctx.moveTo(x,z); } else { ctx.lineTo(x,z); }
-            }
-            ctx.closePath();
-            ctx.stroke();
-            ctx.strokeStyle = gStyleWire;
-            for (var i = 0; i < dots.length; i++) {
-                var vector = rotate(this.Orientation,dots[i]);
-                ctx.beginPath();
-                ctx.rect(lX + vector[0] - 1, lZ + vector[1] - 1,2,2);
-                ctx.stroke();
-            } 
-            for (var iw = 0; iw  < wires.length; iw++) { 
-                ctx.beginPath();
-                for (var i = 0; i < wires[iw].length; i++) {
-                    var vector = rotate(this.Orientation,wires[iw][i]);
-                    var x = lX + vector[0];
-                    var z = lZ + vector[1];
-                    if (i == 0) { ctx.moveTo(x,z); } else { ctx.lineTo(x,z); }
-                }
-                ctx.stroke();
-            }
-    }   }   
-}
+}   
 // ========================================================================== //
 function cRepeater(pXYZ, pOrientation, pDelay, pSignalName, pSignalSourceNames) {
     var Location;
@@ -619,7 +352,8 @@ function cRepeater(pXYZ, pOrientation, pDelay, pSignalName, pSignalSourceNames) 
     this.Location  = new cLocation(pXYZ);
     this.BlockInfo = new cBlockInfo('repeater', this.Subtype());
     this.PowerInfo = new cPowerInfo(this, 0, pDelay, pSignalName, pSignalSourceNames);
-    gBlocks.push(this); 
+    new cBlock(LocationBelow(pXYZ), 'support', 0);
+    gBlocks.push(this);
 }
 cRepeater.prototype.Subtype = function () {
     switch (this.Orientation) {
@@ -639,14 +373,16 @@ cRepeater.prototype.SetInput = function () {
                 this.Locked = this.Locked || (sp.Power[s] > 0);
             }
         }
-        if (!this.Locked) { 
+        if (this.Locked) {
+            for (var i = 1; i < p.Power.length; i++) {p.Power[i] = p.Power[0]}
+        } else {
             lSourcePower = p.Sources[0].PowerInfo.Power[0];
-            p.Power[p.Power.length - 1] = (lSourcePower == 0) ?  0 : 15; 
+            p.Power[p.Power.length - 1] = (lSourcePower == 0) ?  0 : 15;
         }
     }
     catch (err) { this.ErrorMessage(err); }
 }
-cRepeater.prototype.DrawBlock = function () {
+cRepeater.prototype.DrawBlock = function(y,ctx) {
     var lX = xOffset + this.Location.X * xScale + xScale/2;
     var lZ = yOffset + this.Location.Z * zScale + zScale/2;
     var  inWire = [[-xScale/2,0],[-8,0]];
@@ -660,10 +396,14 @@ cRepeater.prototype.DrawBlock = function () {
         case 3: dots = [[-4,-2],[-4,+2],[ 0, 0]        ]; break;
         case 4: dots = [[-4,-3],[-4,+3],[-2, 0],[+1, 0]]; break;
     }
-    if (0 < this.Location.Y && this.Location.Y < 5) {
-        var y = [this.Location.Y-1, 4];        
-        for (var iY = 0; iY < y.length; iY++) {
-            var ctx = gLayerCanvasses[y[iY]];
+    // if (0 < this.Location.Y && this.Location.Y < 5) {
+    if (this.Location.Y > 8) {
+            ctx.strokeStyle = 'rgb(64,64,64)';
+    }
+    if (this.Location.Y == y) {
+        // var y = [this.Location.Y-1, 4];
+        // for (var iY = 0; iY < y.length; iY++) {
+            // var ctx = gLayerCanvasses[y[iY]];
             ctx.strokeStyle = 'rgb(64,64,64)';
             ctx.beginPath();
             for (var i = 0; i < triangle.length; i++) {
@@ -680,8 +420,8 @@ cRepeater.prototype.DrawBlock = function () {
                 ctx.beginPath();
                 ctx.rect(lX + vector[0] - 1, lZ + vector[1] - 1,2,2);
                 ctx.stroke();
-            } 
-            for (var iw = 0; iw  < wires.length; iw++) { 
+            }
+            for (var iw = 0; iw  < wires.length; iw++) {
                 ctx.beginPath();
                 for (var i = 0; i < wires[iw].length; i++) {
                     var vector = rotate(this.Orientation,wires[iw][i]);
@@ -691,30 +431,31 @@ cRepeater.prototype.DrawBlock = function () {
                 }
                 ctx.stroke();
             }
-    }   }   
+    }
 }
 // ========================================================================== //
 function cHighSlab(pXYZ, pDirectionString = 'EWNS', pBlocktype = 'stone_slab', pSubtype = '3', pSignalName = '', pSignalSourceNames = '') {
     var Location;
     var BlockInfo;
     var PowerInfo;
-    var Directions; 
+    var Directions;
     //  ----------  //
     this.Directions = [];
     for (var i = 0; i < pDirectionString.length; i++) { this.Directions.push(pDirectionString[i]); }
     this.Location  = new cLocation(pXYZ);
     this.BlockInfo = new cBlockInfo(pBlocktype,pSubtype);
     this.PowerInfo = new cPowerInfo(this, 0, 0, pSignalName, pSignalSourceNames);
-    gBlocks.push(this); 
+    gBlocks.push(this);
 }
 cHighSlab.prototype.SetInput = function () { this.PowerInfo.SetInput(); }
-cHighSlab.prototype.DrawBlock = function() {
+cHighSlab.prototype.DrawBlock = function(y,ctx) {
     var lX = xOffset + this.Location.X * xScale + xScale/2;
     var lZ = yOffset + this.Location.Z * zScale + zScale/2;
-    if (0 < this.Location.Y && this.Location.Y < 5) {
-        var y = [this.Location.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
+    // if (0 < this.Location.Y && this.Location.Y < 5) {
+    if (this.Location.Y == y) {
+        // var y = [this.Location.Y-1, 4];
+        // for (var i = 0; i < y.length; i++) {
+            // var ctx = gLayerCanvasses[y[i]];
             ctx.strokeStyle = 'rgb(160,160,160)';
             ctx.beginPath();
             ctx.rect(lX-6,lZ-6,12,12);
@@ -732,11 +473,13 @@ cHighSlab.prototype.DrawBlock = function() {
                 ctx.moveTo(lX + lowerLine[0][0], lZ + lowerLine[0][1]);
                 ctx.lineTo(lX + lowerLine[1][0], lZ + lowerLine[1][1]);
                 ctx.stroke();
-    }   }   }
-    if (0 <= this.Location.Y && this.Location.Y < 4) {
-        var y = [this.Location.Y, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
+            }
+    }   
+    if (this.Location.Y == y) {
+    // if (0 <= this.Location.Y && this.Location.Y < 4) {
+        // var y = [this.Location.Y, 4];
+        // for (var i = 0; i < y.length; i++) {
+            // var ctx = gLayerCanvasses[y[i]];
             ctx.strokeStyle = gStyleWire;
             for (var dir = 0; dir < this.Directions.length; dir++) {
                 var vector = rotate(this.Directions[dir],[xScale/2-1,0]);
@@ -744,31 +487,60 @@ cHighSlab.prototype.DrawBlock = function() {
                 ctx.moveTo(lX,lZ);
                 ctx.lineTo(lX + vector[0], lZ + vector[1]);
                 ctx.stroke();
-    }   }   }
+            }
+    }  
 }
 // ========================================================================== //
-function cWireBlock(pXYZ, pDirectionString = 'EWNS', pBlocktype = 'stone', pSubtype = '0', pSignalName = '', pSignalSourceNames = '') {
+function cWireBlock(pXYZ, pDirectionString = 'EWNS', pBlocktype = 'support', pSubtype = '0', pSignalName = 'auto', pSignalSourceNames = '') {
     var Location;
     var BlockInfo;
     var PowerInfo;
-    var Directions; 
+    var Directions;
     //  ----------  //
     this.Directions = [];
     for (var i = 0; i < pDirectionString.length; i++) { this.Directions.push(pDirectionString[i]); }
     this.Location  = new cLocation(pXYZ);
+    if (pSignalName == 'auto') {
+        lSignalName =  this.Location.PK;
+        lSignalSourceNames = [];
+        for (var y = -1; y <= 1; y++) {
+        for (var i = 0; i < this.Directions.length; i++) {
+            switch(this.Directions[i]) {
+                case 'W': lSignalSourceNames.push(PKlocation([this.Location.X - 1,this.Location.Y + y,this.Location.Z    ]));
+                case 'E': lSignalSourceNames.push(PKlocation([this.Location.X + 1,this.Location.Y + y,this.Location.Z    ]));
+                case 'N': lSignalSourceNames.push(PKlocation([this.Location.X    ,this.Location.Y + y,this.Location.Z - 1]));
+                case 'S': lSignalSourceNames.push(PKlocation([this.Location.X    ,this.Location.Y + y,this.Location.Z + 1]));
+                break;
+            }
+        }}  
+    } else {
+        lSignalName =  pSignalName;
+        lSignalSourceNames = pSignalSourceNames;
+    }
     this.BlockInfo = new cBlockInfo(pBlocktype,pSubtype);
-    this.PowerInfo = new cPowerInfo(this, 0, 0, pSignalName, pSignalSourceNames);
-    gBlocks.push(this); 
+    this.PowerInfo = new cPowerInfo(this, 0, 0, lSignalName, lSignalSourceNames);
+    new cBlock(LocationBelow(pXYZ), pBlocktype, pSubtype);
+    gBlocks.push(this);
 }
-cWireBlock.prototype.SetInput = function () { this.PowerInfo.SetInput(); }
-cWireBlock.prototype.DrawBlock = function() {
-    this.BlockInfo.DrawBlock(this.Location);
+cWireBlock.prototype.SetInput = function () {
+    p = this.PowerInfo;
+    if (p.Power.length > 0) {
+        lSourcePower = 1;
+        for (var i = 0; i < p.Sources.length; i++) {
+            if (lSourcePower < p.Sources[i].PowerInfo.Power[0])
+               {lSourcePower = p.Sources[i].PowerInfo.Power[0]}
+        }
+        p.Power[p.Power.length - 1] = lSourcePower - 1;
+    }
+}
+cWireBlock.prototype.DrawBlock = function(y,ctx) {
     var lX = xOffset + this.Location.X * xScale + xScale/2;
     var lZ = yOffset + this.Location.Z * zScale + zScale/2;
-    if (0 <= this.Location.Y && this.Location.Y < 4) {
-        var y = [this.Location.Y, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
+    if (this.Location.Y == y) {
+    // if (0 < this.Location.Y && this.Location.Y < 5) {
+        // var y = [this.Location.Y-1, 4];
+        // for (var i = 0; i < y.length; i++) {
+            // var ctx = gLayerCanvasses[y[i]];
             ctx.strokeStyle = gStyleWire;
             for (var dir = 0; dir < this.Directions.length; dir++) {
                 var vector = rotate(this.Directions[dir],[xScale/2-1,0]);
@@ -776,114 +548,58 @@ cWireBlock.prototype.DrawBlock = function() {
                 ctx.moveTo(lX,lZ);
                 ctx.lineTo(lX + vector[0], lZ + vector[1]);
                 ctx.stroke();
-    }}}
-}
-// ========================================================================== //
-function cWire(pDirectionString = 'EWNS', pXYZ = [0,0,0], pBlocktype = '', pSubtype = '', pSignal = '', pSourceNames = '', pLength = 1) {
-    var Wirelength;
-    var Directions;
-    // ============ //  
-    if (pBlocktype == '') { this.Blocktype = 'redstone_wire'; }
-    this.Wirelength = pLength;
-    this.Directions = [];
-    this.Signal = pSignal;
-    this.SetLocation(pXYZ);
-    for (var i = 0; i < pDirectionString.length; i++) {
-        this.Directions.push(pDirectionString[i]);
-    }
-    this.Reset(0, 0);
-}
-cWire.prototype = new cSignalBlock();
-cWire.prototype.SetInput = function () {
-    if (this.Sources.length > 0) {
-        this.Power[this.Delay] = (this.Sources[0].Power[0] > this.Wirelength) ? this.Sources[0].Power[0] - this.Wirelength : 0;
+            }
     }
 }
-cWire.prototype.DrawBlock = function() {
-    var lX = xOffset + this.X * xScale + xScale/2;
-    var lZ = yOffset + this.Z * zScale + zScale/2;
-    if (0 < this.Y && this.Y < 5) {
-        var y = [this.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
-            ctx.strokeStyle = gStyleWire;
-            for (var dir = 0; dir < this.Directions.length; dir++) {
-                var vector = rotate(this.Directions[dir],[xScale/2-1,0]);
-                ctx.beginPath();
-                ctx.moveTo(lX,lZ);
-                ctx.lineTo(lX + vector[0], lZ + vector[1]);
-                ctx.stroke();
-    }   }   }
-}
 // ========================================================================== //
-function cOrOld(pDirectionString = 'EWNS', pXYZ = [0,0,0], pBlocktype = '', pSubtype = '', pSignal = '', pSourceNames = '') {
-    var Directions; //
-    // ============ //
-    if (pBlocktype == '') { this.Blocktype = 'stone_slab'; }
-    this.Directions = [];
-    for (var i = 0; i < pDirectionString.length; i++) { this.Directions.push(pDirectionString[i]); }
-    this.SetLocation(pXYZ);
-    this.Signal = pSignal;
-    this.SourceNames = (pSourceNames == undefined) ? [] : pSourceNames;
-    this.Reset(0, 0);
+function cLever(pXYZ, pOrientation = 'E', pSignalName = '') {
+    var Location;
+    var BlockInfo;
+    var PowerInfo;
+    var Orientation;
+    //  ----------  //
+    this.Orientation = pOrientation;
+    this.Locked    = false;
+    this.Location  = new cLocation(pXYZ);
+    this.BlockInfo = new cBlockInfo('lever', this.Subtype());
+    this.PowerInfo = new cPowerInfo(this, 0, 0, pSignalName);
+    gBlocks.push(this);
 }
-cOrOld.prototype = new cSignalBlock();
-cOrOld.prototype.SetInput = function () {
-    this.Power[this.Delay] = 0;
-    for (var i = 0; i < this.Sources.length; i++) {
-        if (this.Power[this.Delay] < this.Sources[i].Power[0]) {
-            this.Power[this.Delay] = this.Sources[i].Power[0];
-    }}
+cLever.prototype.SetInput = function () {
+    var a = 1;
 }
-cOrOld.prototype.DrawBlock = function() {
-    var lX = xOffset + this.X * xScale + xScale/2;
-    var lZ = yOffset + this.Z * zScale + zScale/2;
-    if (0 < this.Y && this.Y < 5) {
-        var y = [this.Y-1, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
-            ctx.strokeStyle = 'rgb(160,160,160)';
+cLever.prototype.Off = function () { this.PowerInfo.Power[0] =  0; }
+cLever.prototype.On  = function () { this.PowerInfo.Power[0] = 15; }
+cLever.prototype.Subtype = function () {
+    switch (this.Orientation) {
+        case 'S': return '0'; break; // nog controleren
+        case 'E': return '1'; break;
+        case 'N': return '2'; break;
+        case 'W': return '3'; break;
+    }
+}
+cLever.prototype.DrawBlock = function(y,ctx) {
+    var lX = xOffset + this.Location.X * xScale + xScale/2;
+    var lZ = yOffset + this.Location.Z * zScale + zScale/2;
+    if (this.Location.Y == y) {
+    // if (0 < this.Location.Y && this.Location.Y < 5) {
+        // var y = [this.Location.Y-1, 4];
+        // for (var i = 0; i < y.length; i++) {
+            // var ctx = gLayerCanvasses[y[i]];
+            var upperLine = [rotate(this.Orientation,[-xScale/2,-1]),rotate(this.Orientation,[-2,-1])];
+            var lowerLine = [rotate(this.Orientation,[-xScale/2,+1]),rotate(this.Orientation,[-2,+1])];
+            ctx.strokeStyle = 'rgb(64,64,64)';
             ctx.beginPath();
-            ctx.rect(lX-6,lZ-6,12,12);
+            ctx.rect(lX-1,lZ-1,2,2);
             ctx.stroke();
-            ctx.strokeStyle = 'rgb(192,192,192)';
             ctx.beginPath();
-            ctx.rect(lX-2,lZ-2,4,4);
+            ctx.moveTo(lX + upperLine[0][0], lZ + upperLine[0][1]);
+            ctx.lineTo(lX + upperLine[1][0], lZ + upperLine[1][1]);
+            ctx.moveTo(lX + lowerLine[0][0], lZ + lowerLine[0][1]);
+            ctx.lineTo(lX + lowerLine[1][0], lZ + lowerLine[1][1]);
             ctx.stroke();
-            for (var dir = 0; dir < this.Directions.length; dir++) {
-                var upperLine = [rotate(this.Directions[dir],[xScale/2,-2]),rotate(this.Directions[dir],[+2,-2])];
-                var lowerLine = [rotate(this.Directions[dir],[xScale/2,+2]),rotate(this.Directions[dir],[+2,+2])];
-                ctx.beginPath();
-                ctx.moveTo(lX + upperLine[0][0], lZ + upperLine[0][1]);
-                ctx.lineTo(lX + upperLine[1][0], lZ + upperLine[1][1]);
-                ctx.moveTo(lX + lowerLine[0][0], lZ + lowerLine[0][1]);
-                ctx.lineTo(lX + lowerLine[1][0], lZ + lowerLine[1][1]);
-                ctx.stroke();
-    }   }   }
-    if (0 <= this.Y && this.Y < 4) {
-        var y = [this.Y, 4];        
-        for (var i = 0; i < y.length; i++) {
-            var ctx = gLayerCanvasses[y[i]];
-            ctx.strokeStyle = gStyleWire;
-            for (var dir = 0; dir < this.Directions.length; dir++) {
-                var vector = rotate(this.Directions[dir],[xScale/2-1,0]);
-                ctx.beginPath();
-                ctx.moveTo(lX,lZ);
-                ctx.lineTo(lX + vector[0], lZ + vector[1]);
-                ctx.stroke();
-    }   }   }
+    }
 }
-// ========================================================================== //
-function cLever(pX,pY,pZ, pOrientation = 'E', pBlocktype = 'lever', pSubtype = '', pSignal = '', pSourceNames = '') {
-    this.Signal = pSignal;
-    this.SourceNames = [];
-    this.Reset(0, 0);
-}
-// cLever.prototype = new cSignalBlock(pX,pY,pZ,pOrientation,'lever', '',pSignal,pSourceNames,0,0);
-cLever.prototype = new cSignalBlock();
-cLever.prototype.SetInput = function () {}
-cLever.prototype.Off = function () { this.Power[0] =  0; }
-cLever.prototype.On  = function () { this.Power[0] = 15; }
 // ========================================================================== //
 function ComponentIndex (pSignal) {
     var lIndex = -1;
@@ -905,186 +621,273 @@ function addBlockAndComponent(pBlocktype) {
     gComponents.push(pBlocktype);
 }
 // ========================================================================== //
-function ClockInit() {
-    var lRepeater;
-    var lRepname = '';
-    var lSource = '';
-    addBlockAndComponent(new cSignalBlock   ( '',[2,1,0],'sandstone',0,'-CK',[ 'CK.4.r']));
-    addBlockAndComponent(new cRedTorchOld('W',[1,1,0],''         ,0, 'CK',['-CK'    ]));
-    var lOrientations = ['S','E','E','N'];
-    var lLocations = [[0,1,1],[1,1,2],[3,1,2],[4,1,1]];
-    for (var r = 0; r < 4; r++) {
-        lRepname = 'CK.' + (r + 1) + '.r';
-        lSource = (r == 0) ? 'CK' : 'CK.' + r + '.r';
-        addBlockAndComponent(new cRepeaterOld(lOrientations[r],lLocations[r],'',0,     lRepname, [lSource ], 1 ));
-        if (r < 3) {
-            addBlockAndComponent(new cSignalBlock   (   '',[2*r,1,4],'sandstone',0                                ));
-            addBlockAndComponent(new cRedTorchOld(  'S',[2*r,1,5],         '',0, '-' + lRepname, [lRepname]    ));
-        }
-    }
-    var lOrientations = ['ES' , 'WE'  ,'WS'
-                        ,'ENS', 'WES' ,'WNS'
-                        , 'ENS','WENS','WNS'
-                        , 'EN', 'WE'  ,      'WE', 'WN'
-                        ];
-    var lLocations = [ [0,1,0],                [3,1,0],[4,1,0]
-                     , [0,1,2],        [2,1,2]        ,[4,1,2]
-                     , [0,1,3],        [2,1,3]        ,[4,1,3]
-                     , [0,1,6],[1,1,6],        [3,1,6],[4,1,6]
-                     ];
-    for (var i = 0; i < lLocations.length; i++) {
-        addBlockAndComponent(new cWire (lOrientations[i],lLocations[i],'',0));
-    }
-    //  Afgeleide clocksignalen
-    addBlockAndComponent(new cOrOld('EW',[1,1,3],'',0));
-    addBlockAndComponent(new cOrOld('EW',[3,1,3],'',0));
-    addBlockAndComponent(new cOrOld('EW',[2,2,3],'',0,'CK.p0'    , [ 'CK.1.r' , 'CK.2.r', 'CK.3.r']));
-    addBlockAndComponent(new cRepeaterOld('S',[6,1,5],'',0,'CK.p0+1', ['CK.p0'  ], 1));
-    addBlockAndComponent(new cSignalBlock('',[6,1,7],'sandstone',0));
-    addBlockAndComponent(new cRedTorchOld('S',[6,1,8],''         ,0, 'Phi-0'  , ['CK.p0+1'  ]   ));
-    addBlockAndComponent(new cOrOld('EW',[3,3,3],'',0));
-    addBlockAndComponent(new cOrOld('EW',[4,3,3],'',0));
-    addBlockAndComponent(new cOrOld('WE',[5,3,3],'',0));
-    addBlockAndComponent(new cOrOld('WS',[6,3,3],'',0));
-    addBlockAndComponent(new cOrOld('NS',[6,3,4],'',0));
-    addBlockAndComponent(new cOrOld('NEWS',[2,0,6],'',0,'CK.p1'    , ['-CK.1.r','-CK.2.r','-CK.3.r']));
-    addBlockAndComponent(new cSignalBlock('',[2,1,7],'sandstone',0));
-    addBlockAndComponent(new cRedTorchOld('S',[2,1,8],''         ,0, 'Phi-1'  , ['CK.p1'  ]   ));
-    
-    new cBlock    ([12,1,0], 'sandstone', 0            ,'#-CK'     ,['# CK.4.r' ]);
-    new cRedTorch ([11,1,0], 'W'                       ,'# CK'     ,['#-CK'     ]);
-    new cRepeater ([10,1,1], 'S'   , 1                 ,'# CK.1.r' ,['# CK'     ]);
-    new cRepeater ([11,1,2], 'E'   , 1                 ,'# CK.2.r' ,['# CK.1.r' ]);
-    new cRepeater ([13,1,2], 'E'   , 1                 ,'# CK.3.r' ,['# CK.2.r' ]);
-    new cRepeater ([14,1,1], 'N'   , 1                 ,'# CK.4.r' ,['# CK.3.r' ]);
-    new cHighSlab ([11,1,3], 'EW'  ,undefined,undefined,'# CK.12'  ,['# CK.1.r' ,'# CK.2.r']);
-    new cHighSlab ([12,2,3], 'EW'  ,undefined,undefined,'# CK.23'  ,['# CK.2.r' ,'# CK.3.r']);
-    new cHighSlab ([13,1,3], 'EW'  ,undefined,undefined,'# CK.p0'  ,['# CK.12'  ,'# CK.23' ]);
-    new cRepeater ([ 8,1,5], 'S'   , 1                 ,'# CK.p0+1',['# CK.p0'  ]);
-    new cRedTorch ([ 8,1,8], 'S'                       ,'# Phi-0'  ,['# CK.p0+1']);
-    new cRedTorch ([10,1,5], 'S'                       ,'#-CK.1.r' ,['# CK.1.r' ]);
-    new cRedTorch ([12,1,5], 'S'                       ,'#-CK.2.r' ,['# CK.2.r' ]);
-    new cRedTorch ([14,1,5], 'S'                       ,'#-CK.3.r' ,['# CK.3.r' ]);
-    new cHighSlab ([12,0,6], 'EWNS',undefined,undefined,'# CK.p1'  ,['#-CK.1.r' ,'#-CK.2.r','#-CK.3.r']);
-    new cRedTorch ([12,1,8], 'S'                       ,'# Phi-1'  ,['# CK.p1'  ]);
-    new cBlock    ([10,1,4], 'sandstone', 0);
-    new cBlock    ([12,1,4], 'sandstone', 0);
-    new cBlock    ([14,1,4], 'sandstone', 0);
-    new cBlock    ([12,1,7], 'sandstone', 0);
-    new cBlock    ([ 8,1,7], 'sandstone', 0);
-    new cWireBlock([10,0,0], 'ES');
-    new cWireBlock([13,0,0], 'EW');
-    new cWireBlock([14,0,0], 'WS');
-    new cWireBlock([10,0,2], 'ENS');
-    new cWireBlock([12,0,2], 'EWS');
-    new cWireBlock([14,0,2], 'WNS');
-    new cWireBlock([10,0,3], 'ENS');
-    new cWireBlock([12,0,3], 'EWNS');
-    new cWireBlock([14,0,3], 'WNS');
-    new cWireBlock([ 8,1,3], 'ES');
-    new cWireBlock([ 9,2,3], 'EW');
-    new cWireBlock([10,2,3], 'EW');
-    new cWireBlock([ 8,0,4], 'NS');
-    new cWireBlock([ 8,0,6], 'NS');
-    new cWireBlock([10,0,6], 'EN');
-    new cWireBlock([11,0,6], 'EW');
-    new cWireBlock([13,0,6], 'EW');
-    new cWireBlock([14,0,6], 'WN');
+function ClockInit(pDelay = 4) {
+    gBlocks = [];
+    gSignals = [];
+    new cWireBlock([1,3,0], 'EW', 'sandstone', 0,'-CKb'  ,['-CK' ]);
+    new cRedTorch ([0,2,0], 'W'           ,' CK'   ,['-CKb']);
+    new cRepeater ([1,2,1], 'E', pDelay   ,'-CK'   ,[' CK' ]);
+    new cWireBlock([2,2,0], 'WS');
+    new cWireBlock([0,2,1], 'ENS');
+    new cWireBlock([2,2,1], 'WN');
 }
 function ClockSignals() {
-    gComponents = [];
     ClockInit();
-    gDisplay = [ 'CK'];
-    // gDisplay = ['CK','Phi-0','Phi-1'];
-    SetSignalsToShow('# Phi-0','# Phi-1');
-    
+    SetSignalsToShow('CK');
     Signaal();
 }
-// ========================================================================== //
-function AddInstructionClockUnit(pUnitnr, pSource = '') {
-    var lPrefix =  'IC.' + pUnitnr + '.';
+// =========================================================================== //
+function PhaseClockInit(pCycleTime = 1) {
+    gBlocks = [];
+    gSignals = [];
+    switch (pCycleTime) {
+        case  1: lDelays = [1,1,1,1]; break;
+        case  2: lDelays = [2,2,2,3]; break;
+        default: lDelays = [1,1,1,1]; break;
+    }
+    new cBlock    ([2,2,0], 'sandstone', 0            ,'-CK'     ,[' CK.4.r' ]);
+    new cRedTorch ([1,2,0], 'W'                       ,' CK'     ,['-CK'     ]);
+    new cRepeater ([0,2,1], 'S'   , lDelays[0]        ,' CK.1.r' ,[' CK'     ]);
+    new cRepeater ([1,2,2], 'E'   , lDelays[1]        ,' CK.2.r' ,[' CK.1.r' ]);
+    new cRepeater ([3,2,2], 'E'   , lDelays[2]        ,' CK.3.r' ,[' CK.2.r' ]);
+    new cRepeater ([4,2,1], 'N'   , lDelays[3]        ,' CK.4.r' ,[' CK.3.r' ]);
+    new cWireBlock([0,2,0], 'ES', undefined, undefined, ' CK.1.rw', []);
+    new cWireBlock([3,2,0], 'EW');
+    new cWireBlock([4,2,0], 'WS');
+    new cWireBlock([0,2,2], 'ENS');
+    new cWireBlock([2,2,2], 'EWS');
+    new cWireBlock([4,2,2], 'WNS');
+    // 
+    new cHighSlab ([1,2,3], 'EW'  ,undefined,undefined,' CK.12'  ,[' CK.1.r' ,' CK.2.r']);
+    new cHighSlab ([2,3,3], 'EWS' ,undefined,undefined,' CK.23'  ,[' CK.2.r' ,' CK.3.r']);
+    new cHighSlab ([3,2,3], 'EWS' ,undefined,undefined,' CK.p0'  ,[' CK.12'  ,' CK.23' ]);
+    new cRepeater ([6,2,5], 'S'   , 1                 ,'-Phi-0'  ,[' CK.p0'  ]);
+    new cRedTorch ([6,2,7], 'S'                       ,' Phi-0'  ,['-Phi-0'  ]);
+    new cBlock    ([0,2,4], 'sandstone', 0            ,' CK.1.b', [' CK.1.r' ]);
+    new cBlock    ([2,2,4], 'sandstone', 0            ,' CK.2.b', [' CK.2.r' ]);
+    new cBlock    ([4,2,4], 'sandstone', 0            ,' CK.3.b', [' CK.3.r' ]);
+    new cRedTorch ([0,2,5], 'S'                       ,'-CK.1.i' ,[' CK.1.b' ]);
+    new cRedTorch ([2,2,5], 'S'                       ,'-CK.2.i' ,[' CK.2.b' ]);
+    new cRedTorch ([4,2,5], 'S'                       ,'-CK.3.i' ,[' CK.3.b' ]);
+    new cWireBlock([2,2,6], 'EWN' ,undefined,undefined,'-Phi-1'  ,['-CK.1.i' ,'-CK.2.i','-CK.3.i']);
+    new cRedTorch ([1,2,7], 'S'                       ,' Phi-1'  ,['-Phi-1'  ]);
+    new cBlock    ([2,2,4], 'sandstone', 0);
+    new cBlock    ([4,2,4], 'sandstone', 0);
+    new cBlock    ([6,2,6], 'sandstone', 0);
+    new cWireBlock([1,3,6], 'EW');
+    new cWireBlock([0,2,3], 'ENS');
+    new cWireBlock([2,2,3], 'EWNS');
+    new cWireBlock([4,2,3], 'WNS');
+    new cWireBlock([2,4,4], 'EN');
+    new cWireBlock([3,4,4], 'EWN');
+    new cWireBlock([4,4,4], 'EW');
+    new cWireBlock([5,3,4], 'EW');
+    new cWireBlock([6,2,4], 'WS');
+    new cWireBlock([0,2,6], 'EN');
+    new cWireBlock([3,2,6], 'EW');
+    new cWireBlock([4,2,6], 'WN');
+}
+function PhaseClockSignals() {
+    PhaseClockInit();
+    SetSignalsToShow('CK','Phi-0','Phi-1');
+    Signaal();
+}
+// =========================================================================== //
+function AddInstructionClockUnit(pUnitnr, mx, mz, pSource = '') {
+    var i  = pUnitnr % 2
+    var dx = (i == 0) ? 1 : -1;
+    var y  = (i == 0) ? 2 * pUnitnr + 2 : 2 * pUnitnr;
+    var z  = (i == 0) ? 9 : 13;
+    var dz = (i == 0) ? 1 : -1;
+    var dWE = ['W','E'];
+    var dNS = ['N','S'];
+    var lPrefix = ' IC.' + pUnitnr + '.';
     var nPrefix = '-IC.' + pUnitnr + '.';
     var lSource = pSource;
-    if (lSource == '') { lSource = 'IC.' + (pUnitnr - 1) + '.t'; }
-    gComponents.push(new cRepeaterOld( lPrefix + 's.Lock', ['-Phi-0'                             ], 1));
-    gComponents.push(new cRepeaterOld( lPrefix + 't.Lock', ['-Phi-1'                             ], 1));
-    gComponents.push(new cRepeaterOld( lPrefix + 's'     , [lSource          , lPrefix + 's.Lock'], 1));
-    gComponents.push(new cInverter( nPrefix + 's'     , [lPrefix + 's'                        ]   ));
-    gComponents.push(new cOrOld      ( nPrefix + 't.OR'  , [nPrefix + 's'    , 'RST'             ]   ));
-    gComponents.push(new cInverter( lPrefix + 't.AND' , [nPrefix + 't.OR'                     ]   ));
-    gComponents.push(new cRepeaterOld( lPrefix + 't'     , [lPrefix + 't.AND', lPrefix + 't.Lock'], 1));
-    gComponents.push(new cInverter( nPrefix + 't'     , [lPrefix + 't'                        ]   ));
-    gComponents.push(new cOrOld      ( nPrefix + 'T'     , [nPrefix + 't'    ,'CK.4.r'           ]   ));
-    gComponents.push(new cInverter( lPrefix + 'T'     , [nPrefix + 'T'                        ]   ));
-    gComponents[ComponentIndex(lPrefix + 'T')].Display = true;
+    if (lSource == '') { lSource = ' IC.' + (pUnitnr - 1) + '.t'; }
+
+    new cRepeater ([mx-4*dx,y,mz-3*dz], dNS[1-i], 1,lPrefix + 'tL',['-Phi-1']);
+    new cRepeater ([mx+4*dx,y,mz-1*dz], dNS[i]  , 1,lPrefix + 'sL',['-Phi-0']);
+    new cWireBlock([mx+4*dx,y,mz], dWE[i] + dNS[i]);
+    new cWireBlock([mx+3*dx,y,mz], 'WE');
+    new cWireBlock([mx+2*dx,y,mz], 'WE');
+    new cWireBlock([mx+1*dx,y,mz], 'WE');
+    if (i == 0) { new cWireBlock([mx,y,mz], 'WE'); }
+    new cWireBlock([mx,y-1,mz-dz], 'NS');
+
+    new cWireBlock([mx-6*dx,y    ,mz-2*dz], dWE[1-i] + dNS[1-i]);
+    new cWireBlock([mx-5*dx,y    ,mz-2*dz], 'WE');
+    new cRepeater ([mx-4*dx,y    ,mz-2*dz], dWE[1-i], 1, lPrefix + 't' ,[lPrefix + 't.AND',lPrefix + 'tL']);
+    new cWireBlock([mx-3*dx,y    ,mz-2*dz], 'EW');
+    new cBlock    ([mx-2*dx,y    ,mz-2*dz], 'sandstone',0);
+    new cRedTorch ([mx-1*dx,y    ,mz-2*dz], dWE[1-i]           ,lPrefix + 't.AND'  ,[nPrefix + 't.OR'] );
+    new cWireBlock([mx     ,y    ,mz-2*dz], 'EW'+dNS[1-i],undefined,undefined,nPrefix + 't.OR',[nPrefix + 's'    , 'RST'             ]);
+    new cBlock    ([mx+1*dx,y    ,mz-2*dz], 'sandstone',0);
+    new cRedTorch ([mx+2*dx,y    ,mz-2*dz], dWE[1-i]           ,nPrefix + 's'  ,[lPrefix + 's'] );
+    new cWireBlock([mx+3*dx,y    ,mz-2*dz], 'WE');
+    new cRepeater ([mx+4*dx,y    ,mz-2*dz], dWE[1-i], 1, lPrefix + 's' ,[lSource,lPrefix + 'sL']);
+    new cWireBlock([mx+5*dx,y    ,mz-2*dz], 'WE');
+    new cWireBlock([mx+6*dx,y+1  ,mz-2*dz], 'WE' + dNS[1-i]);
+    new cWireBlock([mx+6*dx,y+1*i,mz-1*dz], 'NS');
+    new cWireBlock([mx+6*dx,y+2*i,mz     ], 'NS');
+    new cWireBlock([mx+6*dx,y+3*i,mz+1*dz], 'NS');
+
+    u = undefined
+    new cBlock    ([mx+6*dx,y,mz-2*dz], 'sandstone', 0,lPrefix + 'tb',[lPrefix + 't' ]);
+    new cRedTorch ([mx+7*dx,y,mz-2*dz], dWE[1-i]      ,nPrefix + 't' ,[lPrefix + 'tb']);
+    new cWireBlock([mx+8*dx,y,mz-2*dz], dWE[i] + 'NS', u, u   ,nPrefix + 'T' ,[nPrefix + 't','-CK']);
+    new cBlock    ([mx+8*dx,y,mz-1*dz], 'sandstone', 0,nPrefix + 'Tb',[nPrefix + 'T' ]);
+    new cRedTorch ([mx+8*dx,y,mz     ], dNS[1-i]      ,lPrefix + 'T' ,[nPrefix + 'Tb']);
 }
 function InstructionClockInit() {
-    ClockInit();
-    gComponents.push(new cLever   ( 'RST'));
-    gComponents.push(new cInverter('-RST', ['RST']));
-    gComponents.push(new cRepeaterOld( 'IC.0.t.Lock', ['-Phi-1'               ], 1));
-    gComponents.push(new cRepeaterOld( 'IC.0.t'     , [ 'RST'  , 'IC.0.t.Lock'], 1));
-    gComponents.push(new cInverter('-IC.0.t', [ 'IC.0.t'         ]));
-    gComponents.push(new cOrOld      ('-IC.0.T', ['-IC.0.t','CK.4.r']));
-    gComponents.push(new cInverter( 'IC.0.T', ['-IC.0.T'         ]));
-    AddInstructionClockUnit(1);
-    AddInstructionClockUnit(2);
-    AddInstructionClockUnit(3);
-    AddInstructionClockUnit(4);
-    AddInstructionClockUnit(5);
-    gComponents.push(new cRepeaterOld('IC.PreRST.Lock', ['-Phi-0'] ));
-    gComponents.push(new cRepeaterOld('IC.RST.Lock'   , ['-Phi-1'] ));
-    gComponents.push(new cOrOld      ('IC.5.t or RST' , ['IC.5.t'       , 'RST'] ));
-    gComponents.push(new cRepeaterOld('IC.PreRST'     , ['IC.5.t or RST', 'IC.PreRST.Lock']));
-    gComponents.push(new cRepeaterOld('IC.RST'        , ['IC.PreRST'    , 'IC.RST.Lock'   ]));
+    u = undefined
+    mx =  8
+    mz = 12
+    PhaseClockInit();
+    new cLever    ([   0,2,mz-2], 'W'           , ' RST');
+    for (var x = 1; x < mx; x++) new cWireBlock([ x,2,mz-2], 'WE');
+    new cRepeater ([mx+2,2,mz-3], 'S'   , 1     ,' IC.RST.L',['-Phi-0']);
+    new cRepeater ([mx+4,2,mz-1], 'N'   , 1     ,' IC.0.t.L' ,['-Phi-1'     ]);
 
-    gComponents[ComponentIndex('IC.0.t') ].SetSources('IC.PreRST', 'IC.0.t.Lock');
-    gComponents[ComponentIndex('RST')].On();
+    new cHighSlab ([mx  ,2,mz-2], 'WEN' , u, u  ,' IC.5R'  ,[' IC.5.t',' RST']);
+    new cWireBlock([mx+1,2,mz-2], 'WE');
+    new cRepeater ([mx+2,2,mz-2], 'E'   , 1     ,' IC.RST' ,['IC.5R', 'IC.RST.L']);
+    new cWireBlock([mx+3,2,mz-2], 'WE');
+    new cRepeater ([mx+4,2,mz-2], 'E'   , 1     ,' IC.0.t' ,[' IC.RST','IC.0.t.L']);
+    new cWireBlock([mx+5,2,mz-2], 'WE');
+    new cWireBlock([mx+6,3,mz-2], 'WES');
+    new cBlock    ([mx+6,2,mz-2], 'sandstone', 0,' IC.0.tb',[' IC.0.t']);
+    new cRedTorch ([mx+7,2,mz-2], 'E'           ,'-IC.0.t' ,[' IC.0.tb']);
+    new cWireBlock([mx+8,2,mz-2], 'WNS', u, u   ,'-IC.0.T' ,['-IC.0.t','-CK']);
+    new cBlock    ([mx+8,2,mz-1], 'sandstone', 0,'-IC.0.Tb',['-IC.0.T']);
+    new cRedTorch ([mx+8,2,mz  ], 'S'           ,' IC.0.T' ,['-IC.0.Tb']);
+
+    new cWireBlock([mx+6,2,mz-1], 'NS');
+    new cWireBlock([mx+6,2,mz  ], 'NS');
+    new cWireBlock([mx+6,2,mz+1], 'NS');
+
+    new cWireBlock([mx+0,2,mz  ], 'WE');
+    new cWireBlock([mx+1,2,mz  ], 'WE');
+    new cWireBlock([mx+2,2,mz  ], 'WE');
+    new cWireBlock([mx+3,2,mz  ], 'WE');
+    new cWireBlock([mx+4,2,mz  ], 'WN');
+
+    AddInstructionClockUnit(1,mx,mz);
+    AddInstructionClockUnit(2,mx,mz);
+    AddInstructionClockUnit(3,mx,mz);
+    AddInstructionClockUnit(4,mx,mz);
+    AddInstructionClockUnit(5,mx,mz);
+
+   
+    gSignals[SignalIndex('RST')].Block.On();    
 }
 function InstructionClockSignals() {
-    gComponents = [];
     InstructionClockInit();
-    gDisplay = ['CK','Phi-0','Phi-1','RST','IC.RST','IC.0.T','IC.1.T','IC.2.T','IC.3.T','IC.4.T','IC.5.T'];
+    SetSignalsToShow('CK','RST','IC.RST','IC.0.T','IC.1.T','IC.2.T','IC.3.T','IC.4.T','IC.5.T');
     Signaal();
 }
 // ========================================================================== //
 function LockedRepeaterInit() {
-    gComponents.push(new cRepeaterOld('LR.Lock', ['CK.1.r'           ], 1));
-    gComponents.push(new cRepeaterOld('LR'     , ['CK.1.r', 'LR.Lock'], 1));
-    gComponents.push(new cRepeaterOld('NR'     , ['CK.2.r'           ], 1));
+    ClockInit();
+    new cWireBlock([0,2,2], 'ENS');
+    new cWireBlock([1,2,2], 'WES');
+    new cRepeater ([2,2,2],'E',1,' CK+1'   , [' CK'            ]);
+    new cRepeater ([3,2,2],'E',1,' NR'     , [' CK+1'          ]);
+    new cWireBlock([0,2,3], 'NS');
+    new cRepeater ([1,2,3],'S',1,' LR.Lock', [' CK'            ]);
+    new cWireBlock([0,2,4], 'EN');
+    new cRepeater ([1,2,4],'E',1,' LR'     , [' CK', ' LR.Lock']);
+
+    
 }
 function LockedRepeaterSignals() {
-    gComponents = [];
-    ClockInit();
     LockedRepeaterInit();
-    gDisplay = ['CK','CK.1.r','LR.Lock','LR','NR','CK.2.r'];
+    SetSignalsToShow(' CK', ' CK+1',' NR',' LR.Lock',' LR');
     Signaal();
 }
 // ========================================================================== //
 function FlipFlopInit() {
-    // FF1
-    gComponents.push(new cInverter( 'FF1.In'     , [ 'CK'    ]   ));
-    gComponents.push(new cRepeaterOld( 'FF1.R1.Lock', [ 'CK'    ], 1));
-    gComponents.push(new cRepeaterOld( 'FF1.R2.Lock', [ 'FF1.In'], 1));
-    gComponents.push(new cRepeaterOld( 'FF1.R1'     , ['-FF1.R2', 'FF1.R1.Lock'], 1, 15));
-    gComponents.push(new cRepeaterOld( 'FF1.R2'     , [ 'FF1.R1', 'FF1.R2.Lock'], 1));
-    gComponents.push(new cInverter('-FF1.R2'     , [ 'FF1.R2']   ));
-    // FF2
-    gComponents.push(new cInverter( 'FF2.In'     , [ 'CK'    ]   ));
-    gComponents.push(new cRepeaterOld( 'FF2.R1.Lock', [ 'CK'    ], 1));
-    gComponents.push(new cRepeaterOld( 'FF2.R2.Lock', [ 'FF2.In'], 1));
-    gComponents.push(new cInverter('-FF2.R1'     , [ 'FF2.R1']   ));
-    gComponents.push(new cRepeaterOld( 'FF2.R1'     , [ 'FF2.R2', 'FF2.R1.Lock'], 1));
-    gComponents.push(new cRepeaterOld( 'FF2.R2'     , ['-FF2.R1', 'FF2.R2.Lock'], 1));
+    new cBlock   ([11,2,3], 'sandstone', 0,' FF1.CK'     ,[' CK'     ]);
+    new cRedTorch([10,2,3], 'W'           ,' FF1.In'     ,[' FF1.CK' ]);
+    new cRepeater([11,2,2], 'N', 1        ,' FF1.RR.Lock',[' FF1.CK' ]);
+    new cRepeater([10,2,2], 'N', 1        ,' FF1.RL.Lock',[' FF1.In' ]);
+    new cRedTorch([12,2,1], 'S'           ,'-FF1.RL'     ,[' FF1.RL' ]);
+    new cRepeater([11,2,1], 'W', 1        ,' FF1.RR'     ,['-FF1.RL' ,' FF1.RR.Lock']);
+    new cRepeater([10,2,1], 'W', 1        ,' FF1.RL'     ,[' FF1.RR' ,' FF1.RL.Lock']);
+    new cBlock   ([12,2,0], 'sandstone', 0,' FF1.Q'      ,[' FF1.RL' ]);
+    new cBlock   ([11,2,8], 'sandstone', 0,' FF2.CK'     ,[' CK'     ]);
+    new cRedTorch([10,2,8], 'W'           ,' FF2.In'     ,[' FF2.CK' ]);
+    new cRepeater([11,2,7], 'N', 1        ,' FF2.RR.Lock',[' FF2.CK' ]);
+    new cRepeater([10,2,7], 'N', 1        ,' FF2.RL.Lock',[' FF2.In' ]);
+    new cRedTorch([ 9,2,6], 'S'           ,'-FF2.RR'     ,[' FF2.RR' ]);
+    new cRepeater([10,2,6], 'E', 1        ,' FF2.RL'     ,['-FF2.RR' ,' FF2.RL.Lock']);
+    new cRepeater([11,2,6], 'E', 1        ,' FF2.RR'     ,[' FF2.RL' ,' FF2.RR.Lock']);
+    new cBlock   ([ 9,2,5], 'sandstone', 0,' FF2.Q'      ,[' FF2.RR' ]);
 }
 function FlipFlopSignals() {
     gComponents = [];
     ClockInit();
     FlipFlopInit();
-    gDisplay = ['CK','FF1.R2','FF2.R1'
-               // , 'FF1.In', 'FF1.R1.Lock', 'FF1.R2.Lock', 'FF1.R1', 'FF1.R2', '-FF1.R2'
-               // , 'FF2.In', 'FF2.R1.Lock', 'FF2.R2.Lock', 'FF2.R1', 'FF2.R2', '-FF2.R1'
-               ];
+    SetSignalsToShow
+    (' CK'
+    ,'FF1.CK','FF1.Q','FF2.Q'
+    // ,'FF1.In','FF1.RR.Lock','FF1.RL.Lock','FF1.RR','FF1.RL','-FF1.RL'
+    // ,'FF2.In','FF2.RR.Lock','FF2.RL.Lock','FF2.RR','FF2.RL','-FF2.RR'
+    );
+    Signaal();
+}
+// ========================================================================== //
+function DoorInit() {
+    gBlocks = [];
+    gSignals = [];
+    PhaseClockInit(2);
+    lDoor = new cUnit(gBlocks.length);
+    new cWireBlock([0,2,0], 'ES');
+    new cWireBlock([1,2,0], 'EW');
+    new cWireBlock([2,2,0], 'EW');
+    new cWireBlock([3,2,0], 'EW');
+    new cWireBlock([4,2,0], 'EW');
+    new cWireBlock([5,2,0], 'EW');
+    new cWireBlock([6,2,0], 'EW');
+    new cWireBlock([7,2,0], 'WS');
+
+    new cWireBlock([0,3,1], 'EN');
+    new cWireBlock([1,4,1], 'EW');
+    new cBlock    ([2,4,1], 'sandstone', 0);
+    new cBlock    ([5,4,1], 'sandstone', 0);
+    new cWireBlock([6,4,1], 'EW');
+    new cWireBlock([7,3,1], 'WNS');
+
+    new cWireBlock([2,3,2], 'NS');
+    new cWireBlock([5,3,2], 'NS');
+    new cWireBlock([7,3,2], 'NS');
+    
+    new cWireBlock([2,2,3], 'EN');
+    new cWireBlock([3,2,3], 'WE');
+    new cWireBlock([4,2,3], 'WE');
+    new cWireBlock([5,2,3], 'WENS');
+    new cRedTorch ([6,2,3], 'W'  , '006002003', ['Phi-0']);
+    new cWireBlock([7,3,3], 'WNS', 'sandstone');
+    
+    new cWireBlock([5,2,4], 'NS');
+    new cWireBlock([7,2,4], 'NS');
+
+    new cBlock    ([5,2,5], 'sandstone', 0);
+    new cRedTorch ([6,2,5], 'E' , '006002005', ['Phi-1']);
+    new cWireBlock([7,2,5], 'WN');
+    
+    lDoor.SetIndexLastBlock(gBlocks.length);
+    for (i = lDoor.IndexFirstBlock; i < lDoor.IndexLastBlock; i++) { gBlocks[i].Location.Z += 8; }
+    
+}
+function DoorSignals() {
+    DoorInit();
+    SetSignalsToShow
+    ('CK'
+    , 'Phi-0', '006002003'
+    , 'Phi-1', '006002005'
+    ,'000002000', '005002003'
+    );
     Signaal();
 }
 // ========================================================================== //
@@ -1101,40 +904,27 @@ function CheckComponentsAndDisplay() {
 }
 // ========================================================================== //
 function Signaal() {
-    initSignalCanvas();
-    initLayerCanvas('Laag-1');
-    initLayerCanvas('Laag-2');
-    initLayerCanvas('Laag-3');
-    initLayerCanvas('Laag-4');
-    initLayerCanvas('Alles');
+    initCanvasses();
     CheckComponentsAndDisplay();
     for (var i = 0; i < gSignals.length; i++) { gSignals[i].SetSources();}
-    
-    for (var i = 0; i < gDisplay.length; i++) {
-        try { gComponents[ComponentIndex(gDisplay[i])].Display = true; }
-        catch (err) { console.log(gDisplay[i] + ' ' + err); }
-    }
     var lRow = 1;
-    for (var i = 0; i < gDisplay.length; i++) {
-        gSignalCanvas.fillText(ComponentIndex(gDisplay[i]), 0, 25 * lRow);
-        gComponents [ComponentIndex(gDisplay[i])].ToonNaam(lRow);
-        lRow++;
-    }
     for (var i = 0; i < gSigShow.length ; i++) { gSigShow[i].DrawName(lRow); lRow++; }
-
-    for (var i = 0; i < gBlocksOld.length; i++) { gBlocksOld[i].DrawBlock(); } 
-    for (var i = 0; i < gBlocks.length ; i++) { gBlocks[i].DrawBlock();}
-    
-    for (t = 0; t < 1400/w; t++) {
+    for (var y = 1; y < gLayerCanvasses.length; y++) {
+        for (var i = 0; i < gBlocks.length ; i++) { gBlocks[i].DrawBlock(y, gLayerCanvasses[y]);}
+        for (var i = 0; i < gBlocks.length ; i++) { gBlocks[i].DrawBlock(y, gLayerCanvasses[0]);}
+    }
+    for (t = 0; t < 170; t++) {
         var lRow = 1;
-        if (t == 10 && ComponentIndex('RST') > 0) { gComponents[ComponentIndex('RST')].Off(); }
-        if (t == 14 && ComponentIndex('LR' ) > 0) { gComponents[ComponentIndex('LR')].Reset(1,15); }
-        for (var i = 0; i < gComponents.length; i++) {        gComponents[i].SetInput();  }
-        for (var i = 0; i < gDisplay.length   ; i++) { lRow = gComponents[ComponentIndex(gDisplay[i])].DrawSignal(t,lRow); }
-        for (var i = 0; i < gComponents.length; i++) {        gComponents[i].Tick();      }
-
+        if (t == 10 && SignalIndex('RST') > 0) { gSignals[SignalIndex('RST')].Block.Off();}
+        if (t == 14 && SignalIndex('LR' ) > 0) { gSignals[SignalIndex('LR')].SetPower(15);}
         for (var i = 0; i < gSignals.length; i++) {        gSignals[i].Block.SetInput();}
         for (var i = 0; i < gSigShow.length; i++) { lRow = gSigShow[i].DrawSignal(t,lRow);}
         for (var i = 0; i < gSignals.length; i++) {        gSignals[i].Tick();}
     }
+}
+function InitSignals() {
+    initSignalCanvas();
+    initLayerCanvas('Alles');
+    for (var i = 1; i <= 8; i++) { initLayerCanvas('Laag-' + i); }
+    ClockSignals();
 }
