@@ -3,5 +3,4 @@ table, th, td {
     border: 1px dotted #C0C0C0;
     border-collapse: collapse;
 }
-.debug {font-family:"Courier New"; font-size:8pt;}
-#debug {font-family:"Courier New"; font-size:8pt;}
+#debug { font-family:"Courier New"}

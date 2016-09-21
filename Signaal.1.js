@@ -5,7 +5,6 @@
     var gDisplay = [];
     var gBlocksOld = [];
     var gBlocks = [];
-    var gOutlines = [];
     var w = 8;
     var xOffset = 0;
     var yOffset = 0;
@@ -14,24 +13,16 @@
     var gMaxPower = 15;
     var gStyleWire = 'rgb(255,64,64)';
 // ========================================================================== //
-function cUnit(pUnitName, pIndexFirstBlock = gBlocks.length, pIndexFirstOutline = gOutlines.length) {
+function cUnit(pUnitName, pIndexFirstBlock = 0) {
     var UnitName;
     var IndexFirstBlock;
     var IndexLastBlock;
-    var IndexFirstOutline;
-    var IndexLastOutline;
-    this.UnitName          = pUnitName;
-    this.IndexFirstBlock   = pIndexFirstBlock;
-    this.IndexFirstOutline = pIndexFirstOutline;
+    this.UnitName        = pUnitName;
+    this.IndexFirstBlock = pIndexFirstBlock;
 }
 cUnit.prototype.SetIndexLastBlock = function(pIndexLastBlock) {this.IndexLastBlock = pIndexLastBlock;}
-cUnit.prototype.Finish = function() {
-    this.IndexLastBlock   = gBlocks.length;
-    this.IndexLastOutline = gOutlines.length;
-}
 cUnit.prototype.Move = function(pXYZ) {
-    for (var i = this.IndexFirstBlock;   i < this.IndexLastBlock;   i++)   gBlocks[i].Location.Move(pXYZ);
-    for (var i = this.IndexFirstOutline; i < this.IndexLastOutline; i++) gOutlines[i].Location.Move(pXYZ);
+    for (var i = this.IndexFirstBlock; i < this.IndexLastBlock; i++) gBlocks[i].Location.Move(pXYZ);
 }
 // ========================================================================== //
 function initSignalCanvas() {
@@ -118,50 +109,16 @@ function rotate(pDirection,pVector) {
     }
 }
 // ========================================================================== //
-function cOutline(pXYZ, pBlocktype, pSubtype) {
-    var Location;
-    var BlockInfo;
-    this.Location  = new cLocation(pXYZ);
-    this.BlockInfo = new cBlockInfo(pBlocktype, pSubtype);
-    gOutlines.push(this);
-}
-cOutline.prototype.DrawOutline = function(y, ctx) {
-    // if (this.Location.Y == y) {
-        var lX = xScale * this.Location.X + 1;
-        var lZ = zScale * this.Location.Z + 1;
-        var lL = xScale - 2;
-        var lW = zScale - 2;
-        ctx.strokeStyle = this.BlockInfo.DrawColor().replace('0.5', '1.0');
-        ctx.beginPath();
-        ctx.rect(lX, lZ, lL, lW);
-        ctx.stroke();
-        ctx.strokeStyle = 'rgba(192,192,192,0.5)';
-        ctx.beginPath();
-        ctx.rect(lX + 1, lZ + 1, lL - 2, lW - 2);
-        ctx.stroke();
-    // }
-}
-// ========================================================================== //
 function cBlockInfo(pBlocktype = 'stone', pSubtype = '') {
     var ID;         // Block ID
     var Blocktype;  // Blocktype = Minecraft block name
     var Subtype;    // Subtype (orientation / color / ...) = Minecraft block damage
     //  ------------------------------------------  //
     this.Blocktype = pBlocktype;
-    this.Subtype   = (typeof pSubtype == 'number') ? pSubtype.toString() : pSubtype;
-    // this.Subtype   = pSubtype;
+    this.Subtype   = pSubtype;
 }
-cBlockInfo.prototype.SetBlock = function(pLocation) {
-    var lCommand = '/setblock';
-    lCommand += ' ~' +  pLocation.X;
-    lCommand += ' ~' + (pLocation.Y + gY); --gY;
-    lCommand += ' ~' +  pLocation.Z;
-    lCommand += ' '  +  this.Blocktype;
-    if (this.Subtype != '') lCommand += ' '  +  this.Subtype;
-    // lCommand += ' '  +  this.Subtype;
-    return lCommand;
-}
-cBlockInfo.prototype.DrawColor = function() {
+cBlockInfo.prototype.CommandTerm = function() { return (this.Subtype == '' ? this.Blocktype : this.Blocktype + this.Subtype) }
+cBlockInfo.prototype.DrawBlock = function(y, ctx, pLocation) {
     lSubtype = (typeof this.Subtype == 'number') ? this.Subtype : parseInt(this.Subtype);
     switch(this.Blocktype) {
         case 'support': switch(lSubtype) {
@@ -212,15 +169,12 @@ cBlockInfo.prototype.DrawColor = function() {
             case 10: lColor = 'rgba(255,192,128,0.5)'; break;
         } break;
     }
-    return lColor;
-}
-cBlockInfo.prototype.DrawBlock = function(y, ctx, pLocation) {
     if (pLocation.Y == y) {
         var lX = xScale * pLocation.X;
         var lZ = zScale * pLocation.Z;
         var lL = xScale;
         var lW = zScale;
-        ctx.fillStyle = this.DrawColor();
+        ctx.fillStyle = lColor;
         ctx.fillRect(lX, lZ, lL, lW);
         ctx.strokeStyle = 'rgb(128,128,128)';
         ctx.rect(lX, lZ, lL, lW);
@@ -293,11 +247,7 @@ cPowerInfo.prototype.UpdateLastDraw = function () { this.PowerLastDraw = this.Po
 cPowerInfo.prototype.DrawSignal = function (t, pRow) {
     var x = 100 + w * t;
     var y = 25 * pRow - this.Power[0];
-    var lStyle = (this.Power[0] == 0) ? 'rgb(0,0,' : 'rgb(128,0,';
-    lStyle = (this.Power[0] == 0) ? 'rgb(0,0,' :'rgb(' + (this.Power[0] * 8 + 128) + ',0,';
-    lStyle += (pRow % 2 == 0) ? '128)' : '0)';
-    gSignalCanvas.strokeStyle = lStyle;
-    // gSignalCanvas.strokeStyle = (pRow % 2 == 0) ? 'rgb(0,0,128)' : 'rgb(0,0,0)';
+    gSignalCanvas.strokeStyle = (pRow % 2 == 0) ? 'rgb(0,0,128)' : 'rgb(0,0,0)';
     gSignalCanvas.beginPath();
     gSignalCanvas.moveTo(x     , 25 * pRow - this.PowerLastDraw);
     gSignalCanvas.lineTo(x     , y);
@@ -312,14 +262,11 @@ cPowerInfo.prototype.Debug = function (pError = '') {
     var lHTML = '';
     var lWhiteSpace = '.';
     if (pError != '') { lHTML += '<b>' + FixLength(pError, 10) + '</b>'; }
-    lBlockInfo = this.Block.BlockInfo.Blocktype;
-    if (this.Block.BlockInfo.Subtype != '') lBlockInfo += ' - ' + this.Block.BlockInfo.Subtype;
-    lHTML += FixLength(lBlockInfo, 20);
-    lHTML += ' (' + FixLength(this.Block.Location.X, 2);
+    lHTML += FixLength(this.Block.BlockInfo.Blocktype + ' - ' + this.Block.BlockInfo.Subtype, 20);
+    lHTML += ' |' + FixLength(this.Block.Location.X, 2);
     lHTML += ',' + FixLength(this.Block.Location.Y, 2);
-    lHTML += ',' + FixLength(this.Block.Location.Z, 2) + ') ';
-    // lHTML += FixLength(this.Block.BlockInfo.SetBlock(this.Block.Location), 40) + ' | ';
-    lHTML += FixLength(this.SignalName.trim(), 10);
+    lHTML += ',' + FixLength(this.Block.Location.Z, 2);
+    lHTML += ' | ' + FixLength(this.SignalName.trim(), 10);
     lHTML += ' | ' + FixLength(' ' + this.Distance, 3);
     lPower = ''; for (var i = 0; i < this.Power.length; i++) { lPower += ' ' + this.Power[i]; }
     lHTML += ' | ' + this.Power.length + ' : ' + FixLength(lPower, 12);
@@ -376,7 +323,7 @@ cLocation.prototype.PKlocation = function(pVector = [0,0,0]) {
     return lPK;
 }
 // ========================================================================== //
-function cClockBlock(pSignalName, pFrequency = 2, pPower = 0) {
+function cClockBlock(pSignalName, pFrequency = 2) {
     var Location;
     var BlockInfo;
     var PowerInfo;
@@ -384,7 +331,7 @@ function cClockBlock(pSignalName, pFrequency = 2, pPower = 0) {
     this.Frequency = pFrequency;
     this.Location  = new cLocation([0,0,0]);
     this.BlockInfo = new cBlockInfo('sandstone', 0);
-    this.PowerInfo = new cPowerInfo(this, pPower, 0, pSignalName);
+    this.PowerInfo = new cPowerInfo(this, 0, 0, pSignalName);
     this.PowerInfo.Distance = gMaxPower;
     gBlocks.push(this);
 }
@@ -396,15 +343,6 @@ cClockBlock.prototype.SetInput       = function (t) {
 }
 // ========================================================================== //
 function cBloc2(pXYZ, pSignalName, pSourceDirections = 'WENS', pDestinDirections = '') {
-    lBlock = new cBlock(pXYZ, 'sandstone', 0, 'Dir');
-    lBlock.SetDirections( pSourceDirections, pDestinDirections);
-    if (pSignalName != '') lBlock.PowerInfo.SignalName = pSignalName;
-    for (var i = 0; i < pDestinDirections.length; i++) {
-        if (lBlock.DestinDirections.indexOf(pDestinDirections[i]) < 0)
-            lBlock.DestinDirections.push(pDestinDirections[i]);
-    }
-}
-function cBloc3(pXYZ, pSourceDirections = 'WENS', pDestinDirections = '', pSignalName = '') {
     lBlock = new cBlock(pXYZ, 'sandstone', 0, 'Dir');
     lBlock.SetDirections( pSourceDirections, pDestinDirections);
     if (pSignalName != '') lBlock.PowerInfo.SignalName = pSignalName;
@@ -464,12 +402,9 @@ cBlock.prototype.DrawBlock = function(y, ctx) { this.BlockInfo.DrawBlock(y,ctx,t
 cBlock.prototype.Debug = function (pError = '') {
     var lHTML = '';
     var p = this.PowerInfo;
-    var l = this.Location;
     if (pError != '') { lHTML += '<br/><b>' + pError + '</b>'; }
-    lHTML += '<br/>xxx' + this.Signal;
+    lHTML += '<br/>' + this.Signal;
     lHTML += ' | ' + this.Blocktype + this.Subtype;
-    lHTML += ' |(' + l.X + ',' + l.Y + ',' + l.Z + ')';
-    lHTML += '| ' + this.BlockInfo.Blocktype;
     lHTML += ' | ' + p.Power.length + ' Power: ';
     for (var i = 0; i < p.Power.length; i++) { lHTML += ' ' + p.Power[i]; }
     lHTML += ' | ' + p.Sources.length + ' Sources: ';
@@ -689,7 +624,7 @@ function cWir3(pXYZ, pSourceDirections = 'WENS', pDestinDirections = '') {
     cWir2(pXYZ, '', pSourceDirections, pDestinDirections);
 }
 function cWir2(pXYZ, pSignalName, pSourceDirections = 'WENS', pDestinDirections = '') {
-    lWire = new cWire(pXYZ, pSourceDirections, 'redstone_wire', '', 'Dir');
+    lWire = new cWire(pXYZ, pSourceDirections, 'redstone_wire', 0, 'Dir');
     if (pSignalName != '') lWire.PowerInfo.SignalName = pSignalName;
     for (var i = 0; i < pDestinDirections.length; i++) {
         if (lWire.DestinDirections.indexOf(pDestinDirections[i]) < 0)
@@ -697,7 +632,7 @@ function cWir2(pXYZ, pSignalName, pSourceDirections = 'WENS', pDestinDirections 
     }
 }
 // ========================================================================== //
-function cWire(pXYZ, pDirectionString = 'wensdWENSUMFHZ', pBlocktype = 'wire', pSubtype = '', pSignalName = 'Auto', pSignalSourceNames = '') {
+function cWire(pXYZ, pDirectionString = 'wensdWENSUMFHZ', pBlocktype = 'wire', pSubtype = '0', pSignalName = 'Auto', pSignalSourceNames = '') {
     var Location;
     var BlockInfo;
     var PowerInfo;
@@ -755,18 +690,8 @@ cWire.prototype.DrawBlock = function(y,ctx) {
         }
         for (var dir = 0; dir < this.SourceDirections.length; dir++) {
             var vector = rotate(this.SourceDirections[dir],[xScale/2-3,0]);
-            var lSize = 1;
-            switch(this.SourceDirections[dir]) {
-                case 'w': lSize = 1; break; case 'W': lSize = 2; break; case 'M': lSize = 3; break;
-                case 'e': lSize = 1; break; case 'E': lSize = 2; break; case 'F': lSize = 3; break;
-                case 'n': lSize = 1; break; case 'N': lSize = 2; break; case 'H': lSize = 3; break;
-                case 's': lSize = 1; break; case 'S': lSize = 2; break; case 'Z': lSize = 3; break;
-                case 'd': lSize = 1; break;                             case 'U': lSize = 3; break;
-                default : lSize = 1; alert('Onbekende richting ' + this.SourceDirections[dir] + ' voor cWire'); break;
-            }
-
-            var apex1 = rotate(this.SourceDirections[dir],[3,+lSize])
-            var apex2 = rotate(this.SourceDirections[dir],[3,-lSize])
+            var apex1 = rotate(this.SourceDirections[dir],[+2,+2])
+            var apex2 = rotate(this.SourceDirections[dir],[+2,-2])
             ctx.beginPath();
             ctx.moveTo(lX + vector[0]           , lZ + vector[1]           );
             ctx.lineTo(lX + vector[0] + apex1[0], lZ + vector[1] + apex1[1]);
@@ -916,8 +841,7 @@ function TclockUnit( pUnitName, nClocks, pStartFrequency = 2) {
     var tCK = new cUnit(pUnitName, gBlocks.length);
     var lFrequency = pStartFrequency;
     for (var i = 0; i < nClocks; i++) {
-        new cClockBlock(      pUnitName + '.F' + i, lFrequency);
-        new cClockBlock('-' + pUnitName + '.F' + i, lFrequency, gMaxPower);
+        new cClockBlock(pUnitName + '.F' + i, lFrequency);
         lFrequency *= 2;
     }
     tCK.SetIndexLastBlock(gBlocks.length);
@@ -931,7 +855,7 @@ function ClockSignals() {
     tCK  = TclockUnit('TCK', 5, 5);
     lPU  = PulseUnit('P', 5, 10, 2, [2,6,0,0,0]);
     SetSignalsToShow('CK','TCK.F0','TCK.F1','TCK.F2','TCK.F3','TCK.F4','P.Q0','P.Q1');
-    Signaal('CK');
+    Signaal();
 }
 // =========================================================================== //
 function PhaseClockInit(pCycleTime = 1) {
@@ -1052,7 +976,7 @@ function PhaseClock2Signals() {
     PhaseClock2Init();
     // SetSignalsToShow('000002000','001002000','002002000','003002000','CK');
     SetSignalsToShow('-CK','CK','003002001','003002000','002002000','002002001');
-    Signaal('P2');
+    Signaal();
 }
 // =========================================================================== //
 function AddInstructionClockUnit(pUnitnr, mx, mz, pSource = '') {
@@ -1489,6 +1413,205 @@ function NameLastSignal(pName) {
     gSignals[gSignals.length - 1].SignalName = pName;
 }
 // ========================================================================== //
+function FullAdderOutlineA() {
+    for (var x =  1; x < 15; x++) new cBlock([x,0,4], 'stained_hardened_clay',  4)
+    new cBlock([ 3,0,5], 'stained_hardened_clay',  4);
+    new cBlock([10,0,5], 'stained_hardened_clay',  4);
+    new cBlock([14,0,5], 'stained_hardened_clay',  4);
+}
+function FullAdderInputA() {
+    new cRepeater([1,1,4], 'E', 1, 'FA.A', ['P.Q0']); //
+    for (var x =  1; x < 15; x++) new cBlock([x,0,4], 'stained_hardened_clay',  4)
+    for (var x =  2; x <  7; x++) if (x != 3) new cWir3 ([x,1,4], 'WE');
+    for (var x = 11; x < 14; x++) new cWir3 ([x,1,4], 'WE'); new cWir3([14,1,4], 'WS');
+    new cWir3([3,1,4], 'WES'); new cWir3([7,1,4], 'WE', 'S'); new cWir3([8,1,4], 'W', 'E');
+    new cBlock([ 3,0,5], 'stained_hardened_clay',  4); new cWir3([ 3,1,5], 'N', 'S'); NameLastSignal('FA.Aa');
+    new cBlock([10,0,5], 'stained_hardened_clay',  4); new cWir3([10,1,5], 'N', 'S'); NameLastSignal('FA.Ac');
+    new cBlock([14,0,5], 'stained_hardened_clay',  4); new cWir3([14,1,5], 'N', 'S'); NameLastSignal('FA.Ad');
+    new cHighSlab([7,1,5], 'N');                       new cWir3([ 7,2,5], 'n', 'E'); NameLastSignal('FA.Ab');
+    new cBloc2([ 9,1,4], 'FA.Ablock', 'W');               new cRedTorch([10,1,4], 'E');
+    // new cBlock([ 9,1,4], 'stained_hardened_clay',  4);
+}
+function FullAdderOutlineB() {
+    for (var x = 1; x < 15; x++) new cBlock([x,0,7], 'stained_hardened_clay', 14);
+}
+function FullAdderInputB() {
+    new cRepeater([1,1,7], 'E', 1, 'FA.B', ['P.Q1']);
+    for (var x = 1; x < 15; x++) new cBlock([x,0,7], 'stained_hardened_clay', 14);
+    for (var x = 2; x < 11; x++) { if (x == 3 || x == 6 || x == 10) {new cWir3([x,1,7],'WE','N') } else {new cWir3([x,1,7],'WE');}}
+    new cWir3 ([11,1,7], 'W', 'E');
+
+    new cHighSlab([ 3,1,6], 'NS'); new cWir3([ 3,2, 6], 'ns', 'WE'); NameLastSignal('FA.Ba');
+    new cHighSlab([10,1,6], 'NS'); new cWir3([10,2, 6], 'ns', 'E');  NameLastSignal('FA.Bc');
+    new cHighSlab([14,1,6], 'NS'); new cWir3([14,2, 6], 'ns', 'WE'); NameLastSignal('FA.Bd');
+    new cBloc2([12,1,7], 'FA.Bblock', 'W'); new cRedTorch([13,1,7], 'E'); new cWir3 ([14,1,7], 'WN');
+    new cHighSlab([6,1,6],  'S'); new cWir3([6,2,6],  's');
+    new cHighSlab([6,2,7], 'NS'); new cWir3([6,3,7], 'nS');
+    new cBloc2([ 6,3,8], 'FA.Bhigh', 'N'); new cRedTorch([7,3,8], 'E'); NameLastSignal('FA.Bb');
+}
+function FullAdderOutlineCinput() {
+    //  Outline
+    for (var x =  4; x < 14; x++) new cBlock([ x,0, 9], 'stained_hardened_clay', 5);
+    for (var z = 10; z < 15; z++) new cBlock([10,0, z], 'stained_hardened_clay', 5);
+                                  new cBlock([ 6,0,10], 'stained_hardened_clay', 5);
+                                  new cBlock([ 4,0, 8], 'stained_hardened_clay', 5);
+                                  new cBlock([13,0, 8], 'stained_hardened_clay', 5);
+}
+function FullAdderInputC() {
+    //  Unit
+    new cRepeater([10,1,14], 'N', 1, 'FA.C', ['P.Q2']);
+    new cHighSlab([10,0,13], 'NS');  new cWir3    ([10,1,13], 'NS');
+    new cHighSlab([10,0,12], 'WNS');  new cWir3    ([10,1,12], 'WNS');
+    new cHighSlab([10,0,11], 'ENS');  new cWir3    ([10,1,11], 'ENS');
+    new cHighSlab([10,0,10], 'NS');  new cWir3    ([10,1,10], 'NS');
+    new cHighSlab([10,1,9], 'WES'); new cWir3([10,2,9], 'Ws', 'E');
+    //
+    new cBloc2([11,2,9], '', 'W'); new cWir3([11,3,9], 'w', 'N');   NameLastSignal('FA.Cc');
+    new cRedTorch([12,2, 9], 'E');
+    new cHighSlab([13,0,9], 'WENS');  new cWir3([13,1,9], 'M','N'); NameLastSignal('FA.Cd');
+    new cHighSlab([13,1, 8], 'NS'); new cWir3([13,2, 8], 's', 'N');
+    //
+    new cHighSlab([9,1,9], 'WE' ); new cWir3([9,2,9], 'WE');
+    new cHighSlab([8,1,9], 'WEN'); new cWir3([8,2,9], 'WE', 'N');  NameLastSignal('FA.Cb');
+    new cHighSlab([7,1,9], 'WE' ); new cWir3([7,2,9], 'WE');
+    new cHighSlab([6,1,9], 'WES'); new cWir3([6,2,9], 'ES', 'W');
+    new cBloc2([5,2,9], '', 'U'); new cWir3([5,3,9], 'e');
+    new cRedTorch([ 4,2, 9], 'W');
+    new cBlock([ 4,1,8], 'stained_hardened_clay',  5); new cWir3([4,2,8], 'NS'); NameLastSignal('FA.Ca');
+    //  Naar de AND
+    new cHighSlab([ 6,1,10], 'NS'); new cWir3([ 6,2,10], 'N', 'S');
+}
+function FullAdderOutlineCoutput() {
+    //  Outline
+    for (var z =  8; z < 13; z++) new cBlock([ 2,0, z], 'stained_hardened_clay', 1);
+    for (var z =  6; z < 12; z++) new cBlock([15,0, z], 'stained_hardened_clay', 1);
+    for (var x =  3; x < 10; x++) new cBlock([ x,0,12], 'stained_hardened_clay', 1);
+    for (var x = 11; x < 15; x++) new cBlock([ x,0,11], 'stained_hardened_clay', 1);
+                                  new cBlock([ 5,0,11], 'stained_hardened_clay', 1);
+}
+function FullAdderOutputC() {
+    //  A or B
+new cRepeater([3,3,6], 'W', 1, 'FA.Co', ['P.Q2']);
+new cRepeater([5,2,10], 'S', 1, 'FA.Co2', ['P.Q2']);
+    for (var z = 7; z < 12; z++) new cHighSlab([ 2,2,z], 'NS');
+    for (var z = 7; z < 12; z++) new cWir3    ([ 2,3,z], 'NS');
+    new cHighSlab([ 2,2, 6], 'ES'); new cWir3([ 2,3, 6], 'ES');
+    new cHighSlab([ 2,2,12], 'EN'); new cWir3([ 2,3,12], 'EN');
+    new cHighSlab([ 3,1,12], 'W'); new cWir3([ 3,2,12], 'M', 'E');
+    // //  (A or B) and C
+    new cBloc2([ 4,2,12], '', 'W'); // new cBlock([ 4,2,12], 'stained_hardened_clay', 1);
+    new cBlock([ 5,2,12], 'stained_hardened_clay', 1);
+    new cBloc2([ 5,2,11], '', 'N'); // new cBlock([ 5,2,11], 'stained_hardened_clay', 1);
+    new cRedTorch([4,3,12], 'U'); new cRedTorch([5,3,11], 'U'); new cWir3([5,3,12],'WN'); // AND gate
+    new cRedTorch([6,3,12], 'E');
+    new cHighSlab([7,2,12], 'W'); new cWir3([7,3,12], 'W', 'E');
+    new cHighSlab([8,3,12], 'W'); new cWir3([8,4,12], 'w', 'E');
+    new cHighSlab([9,4,12], 'W'); new cWir3([9,5,12], 'w', 'E'); NameLastSignal('FA.(A|B).C');
+    //  A and B = not (not A or not B)
+new cRepeater([15,3,6], 'S', 1, 'FA.Co3', ['P.Q2']);
+    for (var z = 7; z < 11; z++) new cHighSlab([15,2,z], 'NS');
+    for (var z = 7; z < 11; z++) new cWir3    ([15,3,z], 'NS');
+    new cBloc2([15,3,11],  '', 'N'); // new cBlock([15,3,11], 'stained_hardened_clay', 1);
+    new cRedTorch([14,3,11],'W' );
+    new cHighSlab([13,2,11], 'E'); new cWir3([13,3,11],'WE');
+    new cHighSlab([12,2,11],'WE'); new cWir3([12,3,11],'E','W');
+    new cHighSlab([11,3,11], 'E'); new cWir3([11,4,11],'e','W');
+
+
+
+    //  Carry-out = ((A or B) and C) or (A and B)
+}
+function FullAdderOutputQ() {
+    // A or B or not C
+    for (var z = 4; z < 8; z++) {
+        if (5 <= z && z <= 6) new cHighSlab([4,2,z], 'NS');
+        else                  new cBlock   ([4,2,z], 'stained_hardened_clay', 3);
+        new cWir3([4,3,z], 'NS');
+    }
+    new cRedTorch([ 4,2,3], 'N');
+    // // A or not B or C
+    new cBlock   ([8,2,4], 'stained_hardened_clay', 3); new cWir3([8,3,4], 'NS');
+    new cHighSlab([8,2,5], 'WNS'); new cWir3([8,3,5], 'wNS');
+    new cHighSlab([8,2,6], 'NS'); new cWir3([8,3,6], 'NS');
+    new cHighSlab([8,2,7], 'NS'); new cWir3([8,3,7], 'NS');
+    new cHighSlab([8,2,8], 'WNS'); new cWir3([8,3,8], 'WNs');
+
+    new cRedTorch([ 8,2,3], 'N');
+    // not A or B or C
+    for (var z = 4; z < 9; z++) {
+        if (4 < z) new cHighSlab([11,2,z], 'NS');
+        else       new cBlock   ([11,2,z], 'stained_hardened_clay', 3);
+        new cWir3([11,3,z], 'NS');
+    }
+    // (A and B) or not C = not A or not B or not C
+    new cRedTorch([11,2,3], 'N');
+    for (var z = 4; z < 8; z++) {
+        if (4 < z) new cHighSlab([13,2,z], 'NS');
+        else       new cBlock   ([13,2,z], 'stained_hardened_clay', 3);
+        new cWir3([13,3,z], 'NS');
+    }
+    new cRedTorch([13,2,3], 'N');
+    // Q = A xor B xor C = or van bovenstaande
+    for (var x = 4; x < 14; x++) {
+        new cBlock([x,1,2], 'stained_hardened_clay', 3);
+        var lDir = (x == 4) ? 'ES' : (x == 8) ? 'WENS' : (x == 11) ? 'WES' : (x == 13) ? 'WS' : 'WE';
+        new cWir3([x,2,2], lDir);
+        }
+    new cBlock([8,1,1], 'stained_hardened_clay', 3);
+    new cWir3 ([8,2,1],'NS');
+}
+function FullAdderOutlineQ() {
+    var xQbase = [4,8,11,13];
+    var zQend  = [8, 9,9, 8];
+    for (var i = 0; i < xQbase.length; i++) {
+        x = xQbase[i];
+        for (var z = 4; z < zQend[i]; z++) {
+            new cBlock([x,0,z], 'stained_hardened_clay', 3);
+    }}
+    for (var x = 4; x < 14; x++) {new cBlock([x,0,2], 'stained_hardened_clay', 3); }
+    new cBlock([8,0,1], 'stained_hardened_clay', 3);
+}
+function FullAdderOutline(pUnitName) {
+    lFAoutline = new cUnit(pUnitName + 'ol', gBlocks.length);
+    FullAdderOutlineA();
+    FullAdderOutlineB();
+    FullAdderOutlineCinput();
+    FullAdderOutlineCoutput();
+    FullAdderOutlineQ();
+    lFAoutline.SetIndexLastBlock(gBlocks.length);
+    lFAoutline.Move ([ 0, 1, 0]);
+}
+function FullAdderUnit(pUnitName) {
+    lFA = new cUnit(pUnitName, gBlocks.length);
+    FullAdderInputA();
+    FullAdderInputB();
+    // FullAdderInputC();
+    // FullAdderOutputC();
+    FullAdderOutputQ();
+    lFA.SetIndexLastBlock(gBlocks.length);
+    return lFA;
+}
+function FullAdderInit(pUnitName) {
+    FullAdderOutline();
+    lFA0  = FullAdderUnit('FA0');
+    // lFA1  = FullAdderUnit('FA1');
+    lFA0.Move ([ 0, 1, 0]);
+    // lFA1.Move ([ 0, 5, 0]);
+}
+function FullAdderSignals() {
+    gBlocks = [];
+    gSignals = [];
+    lPulsars = PulseUnit('P', 5, 5, 2);
+    FullAdderInit('FA');
+    SetSignalsToShow('P.Q0');
+    // SetSignalsToShow('FA.A','FA.B','FA.C');
+    // SetSignalsToShow('P.Q0', 'FA.A', 'FA.Ablock', 'FA.Aa', 'FA.Ab', 'FA.Ac', 'FA.Ad');
+    // SetSignalsToShow('P.Q1', 'FA.B', 'FA.Bblock', 'FA.Ba', 'FA.Bb', 'FA.Bc', 'FA.Bd');
+    // SetSignalsToShow('P.Q2', 'FA.C', 'FA.Cblock', 'FA.Ca', 'FA.Cb', 'FA.Cc', 'FA.Cd');
+    // SetSignalsToShow('P.Q2', 'FA.Co', '003003012', 'FA.(A|B).C');
+    Signaal('FA');
+}
+// ========================================================================== //
 function DoorInit() {
     gBlocks = [];
     gSignals = [];
@@ -1540,22 +1663,22 @@ function DoorSignals() {
     , 'Phi-1', '006002005'
     ,'000002000', '005002003'
     );
-    Signaal('DR');
+    Signaal();
 }
 // ========================================================================== //
 function LongInit() {
     gBlocks = [];
     gSignals = [];
-    tCK  = TclockUnit('TCK', 5, 5);
-    tCK.Move([0,1,0]);
-    new cWir2([0,0,3], '0', '');
-    new cRedTorch([ 0,1,4], 'U', 'T.1', ['TCK.F0']);
-    new cRedTorch([ 3,1,3], 'U', 'T.2', ['TCK.F1']);
-    new cRedTorch([16,1,3], 'U', 'T.3', ['TCK.F2']);
+    lCK  = ClockUnit('CK', 4);
+    lCK.Move([0,1,0])
+    new cWir2([0,0,3], '0', '')
+    new cRedTorch([ 0,1,4], 'U', 'T.1', '0')
+    new cRedTorch([ 3,1,3], 'U', 'T.2', '0')
+    new cRedTorch([16,1,3], 'U', 'T.3', ['CK'])
     for (var x = 1; x < 16; x++) {
-        new cWir2([x,1,4], '', (x == 3) ? 'WEN' : 'WE');
+        new cWir2([x,1,4], '', (x == 3) ? 'WEN' : 'WE')
     }
-    new cWir2([16,1,4], '', 'WN');
+    new cWir2([16,1,4], '', 'WN')
 }
 function LongSignals() {
     LongInit();
@@ -1573,156 +1696,28 @@ function LongSignals() {
     // ,'018001001'
     // ,'019001001'
     );
-    Signaal('LG');
+    Signaal();
 }
 // ========================================================================== //
-function BnRegisterInit(pBitnr) {
-    function Bf0dn(pBitnr) {
-        lDir313 = (pBitnr == 0) ? 'Ws' : 'Wn';
-        lBd = (pBitnr == 0) ? 'B.d' : 'B.-d';
-        new cHighSlab([ 1,0, 3],'ENS');
-        new cHighSlab([ 2,0, 3],'WE');
-        new cRepeater([ 0,0, 0],'E', 1, 'B.d' + pBitnr, ['-TCK.F1']);
-        if (pBitnr == 0) {
-            new     cWir3([1,0,0], 'WS');
-            new     cWir3([1,0,1], 'N', 'S');
-            new     cWir3([1,0,2], 'NS');
-        } else {
-            new    cBloc2([ 1,0, 0],'', 'W');
-            new cRedTorch([ 1,0, 1],'S');  NameLastSignal('B.-d1');
-            new     cWir3([ 1,0, 2],'N', 'S');
-        }
-        new cRepeater([ 1,0, 5],'N', 1, 'B.f0', ['-TCK.F2']);
-        new     cWir3([ 1,0, 4],'S','N');
-        new     cWir3([ 1,1, 3],'nsE'); NameLastSignal(lBd + pBitnr + '+f0');
-        new     cWir3([ 2,1, 3],'WE');
-        new     cWir3([ 3,1, 3],lDir313);
-        new    cBloc3([ 3,0, 3],'U');
-        if (pBitnr == 0) { new cRedTorch([3,0,2], 'N'); new cWir3([3,0,4], 'HE'); }
-        else             { new cRedTorch([3,0,4], 'S'); new cWir3([3,0,2], 'ZN'); }
-        new     cWir3([ 3,0, 1],'NS');
-        // new     cWir3([ 3,0, 2],'NS');
-        new     cWir3([ 3,0, 0],'ES');
-        new     cWir3([ 4,0, 0],'WE');
-        new     cWir3([ 5,0, 0],'WE');
-        new     cWir3([ 6,0, 0],'W', 'E');
-
-        new     cWir3([ 4,0, 4],'WE');
-        new     cWir3([ 5,0, 4],'WE');
-        new     cWir3([ 6,0, 4],'WE');
-        new     cWir3([ 7,0, 4],'W' ,'E');
-    }
-    function Bf1(pBitnr) {
-        new cHighSlab([ 6,1, 3],'NS');
-        new cHighSlab([ 6,1, 4],'NS');
-        new cHighSlab([ 6,1, 5],'Ns');
-        new cHighSlab([ 6,2, 6],'nZ');
-        new cHighSlab([ 6,0, 6],'Ns');
-        new cHighSlab([ 6,3, 7],'n');
-        new cHighSlab([ 6,3, 7],'n');
-        new    cBlock([ 6,1, 2],'sandstone',0);
-        if (pBitnr == 0) { new cRepeater([6,0,8],'N',1,'B.f1-in',['-TCK.F3']); }
-        if (pBitnr == 0) { new cWir3([ 6,0, 7],'S','N'); }
-        else             { new cWir3([ 6,0, 7],'n'); }
-        new     cWir3([ 6,1, 6],'s','N');
-        new     cWir3([ 6,2, 5],'s','N'); NameLastSignal('B.f1(' + pBitnr + ')');
-        new cRepeater([ 6,2, 4],'N',1);
-        new     cWir3([ 6,2, 3],'NS');
-        new     cWir3([ 6,2, 2],'eS');
-        new     cWir3([ 7,1, 2],'Mn');
-        new    cBloc3([ 7,0, 2],'U');
-        new     cWir3([ 7,0, 1],'Z' ,'N');
-        new cRedTorch([ 8,0, 2],'E'); NameLastSignal('B.-f1(' + pBitnr + ')');
-        new     cWir3([ 8,0, 3],'N','S');
-        new     cWir3([ 6,3, 6],'n','Z');
-    }
-    function Bf1f0dn(pBitnr) {
-        var not_dn_or_f0_or_f1  = 'B.-d' + pBitnr + 'f0|f1';
-        var dn_or_f0_and_not_f1 = 'B.d'  + pBitnr + 'f0.-f1';
-        var dn_or_f0_or_not_f1  = 'B.d'  + pBitnr + 'f0|-f1';
-        var not_dn_or_f0_and_f1 = 'B.-d' + pBitnr + 'f0.f1';
-        var Qn = 'B.Q' + pBitnr
-        new cHighSlab([ 7,0, 0],'WES');
-        new cHighSlab([ 8,0, 0],'WE');
-        new cHighSlab([ 8,0, 4],'WEN');
-        new     cWir3([ 7,1, 0],'ws','E');
-        new     cWir3([ 8,1, 0],'WE');
-        new     cWir3([ 8,1, 4],'wEn');
-        new    cBloc3([ 9,0, 0],'U', '', not_dn_or_f0_or_f1);
-        new    cBloc3([ 9,0, 4],'U', '', dn_or_f0_or_not_f1);
-        new     cWir3([ 9,1, 0],'W');
-        new     cWir3([ 9,1, 4],'W');
-        new cRedTorch([10,0, 0],'E'  ); NameLastSignal(dn_or_f0_and_not_f1);
-        new     cWir3([10,0, 1],'NS' );
-        new     cWir3([10,0, 2],'NSE'); NameLastSignal(Qn);
-        new     cWir3([10,0, 3],'NS' );
-        new cRedTorch([10,0, 4],'E'  ); NameLastSignal(not_dn_or_f0_and_f1);
-    }
-    lBn = new cUnit('B'+pBitnr);
-    Bf0dn(pBitnr);
-    Bf1(pBitnr);
-    Bf1f0dn(pBitnr);
-    lBn.SetIndexLastBlock(gBlocks.length);
-    return lBn;
-}
-function BRegisterSignals() {
-    gBlocks = [];
-    gSignals = [];
-    tCK  = TclockUnit('TCK', 5, 5);
-    lB0 = BnRegisterInit(0);     lB0.Move([0,1,0]);
-    lB1 = BnRegisterInit(1);     lB1.Move([0,5,0]);
-    lB2 = BnRegisterInit(2);     lB2.Move([0,9,0]);
-    // SetSignalsToShow('B.f0', 'B.f1', 'B.d0', 'B.Q0', 'B.d1', 'B.Q1');
-    SetSignalsToShow
-    ('B.f0', 'B.f1', 'B.d1','B.f1-in'
-    ,'B.f1(0)','B.f1(1)','B.f1(2)'
-    ,'B.-f1(0)','B.-f1(1)','B.-f1(2)'
-    , 'B.Q0', 'B.Q1', 'B.Q2'
-    );
-    Signaal('B');
-}
+function DebugChanged() { InitSignals(); }
 // ========================================================================== //
-function DebugChanged(pSchakeling = '') { InitSignals(pSchakeling); }
-// ========================================================================== //
-function SchakelingNaam(pSchakeling) {
-    switch (pSchakeling) {
-        case 'B' : return 'B-register';
-        case 'CK': return 'CK Clock';
-        case 'CY': return 'CY Carry';
-        case 'DR': return 'DR Door';
-        case 'FA': return 'FA Full Adder';
-        case 'FF': return 'FF FlipFlop';
-        case 'IC': return 'IC Instruction Clock';
-        case 'LG': return 'LG Long';
-        case 'LR': return 'LR Locked Repeater';
-        case 'PC': return 'PC Program Counter';
-        case 'PH': return 'PH Phase Clock';
-        case 'P2': return 'P2 Phase Clock II';
-        case 'SR': return 'SR Set/Reset';
-        default  : return '??';
-    }
-}
 function Signaal(pSchakeling) {
-    gY = 0;
     setCookie('Schakeling', pSchakeling, 365);
     DebugClear();
     initCanvasses();
-    document.getElementById("schakelingnaam").innerHTML = SchakelingNaam(pSchakeling);
     for (var i = 0; i < gSignals.length; i++) { gSignals[i].SetSignalName();}
     for (var i = 0; i < gSignals.length; i++) { gSignals[i].SetSources();   }
     if (document.getElementById("debugon").checked)
         for (var i = 0; i < gSignals.length; i++) { gSignals[i].Debug();}
     var lRow = 1;
     for (var i = 0; i < gSigShow.length ; i++) { gSigShow[i].DrawName(lRow); lRow++; }
-    for (var i = 0; i < gOutlines.length ; i++) {
-        for (var y = 0; y < gLayerCanvasses.length; y++) {
-            gOutlines[i].DrawOutline(y, gLayerCanvasses[y]);
-    }}
+
     for (var y = 1; y < gLayerCanvasses.length - 1; y++) {
         for (var i = 0; i < gBlocks.length ; i++) { gBlocks[i].DrawBlock(y, gLayerCanvasses[y]);}
         for (var i = 0; i < gBlocks.length ; i++) { gBlocks[i].DrawBlock(y, gLayerCanvasses[0]);}
         for (var i = 0; i < gBlocks.length ; i++) { gBlocks[i].DrawBlock(gLayerCanvasses.length - 1 - y, gLayerCanvasses[gLayerCanvasses.length - 1]);}
     }
+
     for (t = 0; t < 170; t++) {
         var lRow = 1;
         if (t == 14 && SignalIndex('LR' ) > 0) { gSignals[SignalIndex('LR')].SetPower(gMaxPower);}
@@ -1736,25 +1731,21 @@ function Signaal(pSchakeling) {
         for (var i = 0; i < gSigShow.length; i++) { lRow = gSigShow[i].UpdateLastDraw();}
     }
 }
-function InitSignals(pSchakeling = '') {
+function InitSignals() {
     // initSignalCanvas();
     // initLayerCanvas('Bovenaanzicht');
     // initLayerCanvas('Onderaanzicht');
     // for (var i = 1; i <= 8; i++) { initLayerCanvas('Laag-' + i); }
-    var lSchakeling = (pSchakeling == '') ? getCookie('Schakeling') : pSchakeling;
+    var lSchakeling = getCookie('Schakeling');
     switch (lSchakeling) {
-        case 'B' : BRegisterSignals();              break;
         case 'CK': ClockSignals();                  break;
         case 'CY': CarrySignals();                  break;
-        case 'DR': DoorSignals();                   break;
         case 'FA': FullAdderSignals();              break;
         case 'FF': FlipFlopSignals();               break;
         case 'IC': InstructionClockSignals();       break;
-        case 'LG': LongSignals();                   break;
         case 'LR': LockedRepeaterSignals();         break;
         case 'PC': ProgramCounterSignals();         break;
         case 'PH': PhaseClockSignals();             break;
-        case 'P2': PhaseClock2Signals();             break;
         case 'SR': SetResetSignals();               break;
         default  : ClockSignals();                  break;
     }
