@@ -4,8 +4,8 @@ var gBusses  = [];
 var gSignals = [];
 var gSignalIDs = [];
 var gPSigs = [];
-var gSignalPairs = [];
-var gSignalSets = [];
+var gSignalPairs  = [];
+var gCycles       = [];
 var gInstructions = [];
 function toBin(pValue) {
     var lBin = '00000000' + pValue.toString(2);
@@ -67,56 +67,106 @@ function InitSignalPairs() {
     new cSignalPair('MM=PC','PC.WD','MM.RD');   //  Load memory address AD from program counter (write to memory)
     new cSignalPair('MM=FL','FL.WD','MM.RD');   //  Load memory address AD from flags           (write to memory)
     new cSignalPair('FL=MM','MM.WD','FL.RD');   //  Load flags from memory address AD
+    new cSignalPair('CY=i1'        ,'FL.RC');   //  Read Carry from instruction bit 1
 }
-{// class cSignalSet
-    function cSignalSet(pSetName, pSignalPairs) {
+{// class cCycle
+    function cCycle(pSetName, pSignalPairs) {
         var SetName;
         var SignalPairs;
         this.SetName = pSetName;
-        this.SignalPairs = pSignalPairs;
-        gSignalSets[this.SetName] = this;
+        this.SignalPairs = pSignalPairs.split(",");
+        gCycles[this.SetName] = this;
     }
 }
-function InitSignalSets() {
-    new cSignalSets('PC++'     ,['PC++']                         );   //  Increment program counter
-    new cSignalSets('ML=(PC)'  ,['AD=PC','ML=MM']);   //  Read memory latch from memory location PC
-    new cSignalSets('AC+-1'    ,['OA=AC','OB','OC']);   //  Add to or Subtract 1 from accumulator (for INA en DEA)
-    new cSignalSets('AC=AL'    ,['AC=AL']                );   //  Store calculation result in accumulator
-    new cSignalSets('AC=SH'    ,['AC=SH']                );   //  Store shift result in accumulator
-    new cSignalSets('PC=ML'    ,['PC=ML']                );   //  Jump to location ML
-    new cSignalSets('AD=ML'    ,['AD=ML']                );   //  Prepare save to memory location ML
-    new cSignalSets('(AD)=AC'  ,['MM=AC']                );   //  Store accumulator in memory location AD
-    new cSignalSets('(AD)=FL'  ,['MM=FL']                );   //  Store flags in memory location AD (PHP)
-    new cSignalSets('(AD)=PC'  ,['MM=PC']                );   //  Store PC in memory location AD (JSR)
-    new cSignalSets('LDA nn'   ,['AD=ML','AC=MM','PC++']);   // ML=(PC); AC=(ML), PC++
-    new cSignalSets('A=AC'     ,['OA=AC']                );   //  Read operand A from accumulator
-    new cSignalSets('AC=A+(ML)',['AD=ML','OB=MM','OC','AC=AL']); //  Add (ML) to or Subtract (ML) from accumulator
+function InitCycles() {
+    if (gSignalPairs.length == 0) InitSignalPairs();
+    new cCycle('PC++'     ,'PC++'                   );  //  Increment program counter
+    new cCycle('ML=(PC)'  ,'AD=PC,ML=MM'            );  //  Read memory latch from memory location PC
+    new cCycle('PC=(SP)'  ,'AD=SP,PC=MM'            );  //  Read program counter from memory location SP
+    new cCycle('AL=AC±1'  ,'OA=AC,OB,OC'            );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
+    new cCycle('AC=AL'    ,'AC=AL'                  );  //  Store calculation result in accumulator
+    new cCycle('AC=SH'    ,'AC=SH'                  );  //  Store shift result in accumulator
+    new cCycle('PC=ML'    ,'PC=ML'                  );  //  Jump to location ML
+    new cCycle('PC=AL'    ,'PC=AL'                  );  //  Jump to location calculated by ALU for branch
+    new cCycle('AD=ML'    ,'AD=ML'                  );  //  Prepare save to memory location ML
+    new cCycle('(AD)=AC'  ,'MM=AC'                  );  //  Store accumulator in memory location AD
+    new cCycle('(AD)=FL'  ,'MM=FL'                  );  //  Store flags in memory location AD (PHP)
+    new cCycle('(AD)=PC'  ,'MM=PC'                  );  //  Store PC in memory location AD (JSR)
+    new cCycle('LDA #'    ,      'AC=ML,PC++'       );  //  AC=ML  , PC++
+    new cCycle('LDA nn'   ,'AD=ML,AC=MM,PC++'       );  //  AC=(ML), PC++
+    new cCycle('AL=AC'    ,'OA=AC,OC'               );  //  Read operand A from accumulator, operand C from instruction
+    new cCycle('CY=i1'    ,'CY=i1'                  );  //  Read Carry from instruction bit 1
+    new cCycle('AC=A±ML'  ,      'OB=ML,OC,AC=AL'   );  //  Add ML to or Subtract ML from accumulator
+    new cCycle('AC=A±(ML)','AD=ML,OB=MM,OC,AC=AL'   );  //  Add (ML) to or Subtract (ML) from accumulator
+    new cCycle('AC=A·(ML)','AD=ML,OB=MM,OC,AC=AL'   );  //  Logical operation between (ML) and accumulator
+    new cCycle('AC=A·ML'  ,      'OB=ML,OC,AC=AL'   );  //  Logical operation between ML and accumulator
+    new cCycle('AC=(SP)'  ,'AD=SP,AC=MM'            );  //  Load accumulator from memory location SP
+    new cCycle('AL=SP±1'  ,'OA=SP,OB,OC'            );  //  Calculate stack pointer ± 1
+    new cCycle('SP=AL'    ,'SP=AL'                  );  //  Load stack pointer from ALU
+    new cCycle('BRA-3'    ,'AD=PC,OB=ML,OC,PC++'    );  //  B=ML, PC++
+    new cCycle('JSR-3'    ,'OA=SP,OB,OC,PC++'       );  //  AL=SP+1, PC++
 }
 {// class cInstruction
-    function cInstruction(pAM, pCT, pOperation, pMnemonic, pSignalSets) {
+    function cInstruction(pOpcode, pMnemonic, pCycles) {
         var AddressMode; // 00 = Implied, 01 = Immediate, 11 = Direct
         var CT;
         var Operation;
         var Mnemonic;
         var SignalSets;
         var Value;
-        this.AddressMode = pAM;
-        this.CT          = pCT;
-        this.Operation   = pOperation;
+        var lOpcode = pOpcode.split(",");
+        this.AddressMode = lOpcode[0];
+        this.CT          = lOpcode[1];
+        this.Operation   = lOpcode[2];
         this.Mnemonic    = pMnemonic;
-        this.SignalSets  = pSignalSets;
-        this.Value = parseInt(pAM + pCT + pOperation,2);
+        this.Cycles      = pCycles.split(",");
+        this.Value = parseInt(lOpcode.join(''),2);
         gInstructions[this.Value] = this;
     }
 }
 function InitInstructions() {
-    new cInstruction('00','00','0001','INA'   ,['AC+-1','AC=UB']);
-    new cInstruction('00','00','0011','DEA'   ,['AC+-1','AC=UB']);
-    new cInstruction('11','01','0000','LDA nn',['LDA nn']);
-    new cInstruction('11','00','0000','ADC nn',['A=AC','AC=A+(ML)','PC++']);
-    new cInstruction('11','10','0000','SBC nn',['A=AC','AC=A+(ML)','PC++']);
-    new cInstruction('11','01','0001','STA nn',['RA=ML','(AD)=AC','PC++']);
-    new cInstruction('11','11','0000','JMP nn',['PC=ML']);
+    if (gCycles.length == 0) InitCycles();
+    new cInstruction('00,00,0001','INA'   ,'AL=AC±1,AC=AL');
+    new cInstruction('00,00,0011','DEA'   ,'AL=AC±1,AC=AL');
+    new cInstruction('00,00,0100','ROL'   ,'SH=AC<CY,AC=SH');
+    new cInstruction('00,00,0101','ASL'   ,'SH=AC<0' ,'AC=SH');
+    new cInstruction('00,00,0100','ROR'   ,'SH=CY>AC,AC=SH');
+    new cInstruction('00,00,0100','LSR'   ,'SH=0>AC' ,'AC=SH');
+    new cInstruction('00,01,0001','PLA'   ,'AC=(SP)' ,'AL=SP±1,SP=AL');
+    new cInstruction('00,01,0011','PHA'   ,'AL=SP±1,SP=AL'   ,'AD=SP' ,'(AD)=AC');
+    new cInstruction('00,01,0100','TSA'   ,'AC=SP');
+    new cInstruction('00,01,0101','TAS'   ,'SP=AC');
+    new cInstruction('00,01,0111','NOP'   ,'');
+    new cInstruction('00,10,0001','RTS'   ,'PC=(SP),AL=SP±1,SP=AL');
+    new cInstruction('00,11,0001','PLP'   ,'FL=(SP)' ,'AL=SP±1,SP=AL');
+    new cInstruction('00,11,0011','PHP'   ,'AL=SP±1,SP=AL'   ,'AD=SP' ,'(AD)=FL');
+    new cInstruction('00,11,0000','CLC'   ,'CY=i1');
+    new cInstruction('00,11,0010','SEC'   ,'CY=i1');
+    new cInstruction('01,00,0000','ADC #' ,'ML=(PC),A=AC,AC=A±ML,PC++');
+    new cInstruction('01,00,0010','SBC #' ,'ML=(PC),A=AC,AC=A±ML,PC++');
+    new cInstruction('01,00,1000','AND #' ,'ML=(PC),A=AC,AC=A·ML,PC++');
+    new cInstruction('01,00,1001','ORA #' ,'ML=(PC),A=AC,AC=A·ML,PC++');
+    new cInstruction('01,00,1010','EOR #' ,'ML=(PC),A=AC,AC=A·ML,PC++');
+    new cInstruction('01,01,0000','LDA #' ,'ML=(PC),LDA #');
+    new cInstruction('01,01,0010','CMP #' ,'ML=(PC),A=AC,FL=A±ML'  ,'PC++');
+    new cInstruction('11,00,0000','ADC nn','ML=(PC),A=AC,AC=A±(ML),PC++');
+    new cInstruction('11,00,0010','SBC nn','ML=(PC),A=AC,AC=A±(ML),PC++');
+    new cInstruction('11,00,1000','AND #' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
+    new cInstruction('11,00,1001','ORA #' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
+    new cInstruction('11,00,1010','EOR #' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
+    new cInstruction('11,01,0000','LDA nn','ML=(PC),LDA nn');
+    new cInstruction('11,01,0001','STA nn','ML=(PC),AD=ML,(AD)=AC' ,'PC++');
+    new cInstruction('11,01,0010','CMP nn','ML=(PC),A=AC,FL=A±(ML),PC++');
+    new cInstruction('11,10,1000','BCC nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1001','BCS nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1010','BEQ nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1011','BNE nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1100','BVC nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1101','BVS nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1110','BPL nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,10,1111','BMI nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+    new cInstruction('11,11,0000','JMP nn','ML=(PC),PC=ML');
+    new cInstruction('11,11,0011','JSR nn','ML=(PC),JSR-3,SP=AL,AD=SP,(AD)=PC,PC=ML');
 }
 function InitProgramSignals() {
     gPSigs.push(['PC.RST'        ]);
@@ -139,12 +189,12 @@ function InitCPUcanvas() {
     }
 }
 function Init65MINE01() {
+    InitInstructions();
     ResetClock();
     InitCPUcanvas();
     InitProgramSignals();
     new cMM();
     new cML();
-    // var lIC = new cUnit('IC'); lIC.UnitBox.SetXY( 20,240);
     new cIC();
     new cCK();
     new cIR();
@@ -155,7 +205,7 @@ function Init65MINE01() {
     new cOB();
     new cOA();
     new cAL();
-    new cSR();
+    new cSH();
     new cAC();
     new cAD();
     //
@@ -163,14 +213,10 @@ function Init65MINE01() {
     gBusses['UB'] = new cBus('UB'); gBusses['UB'].BusBox.SetXYh(580,120, 400);
     gBusses['AB'] = new cBus('AB'); gBusses['AB'].BusBox.SetXYh(640, 24, 280);
     //
-    // lCK.Draw();
-    // lIC.Draw();
     Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     // var lIF = new cUnit('IF'); lIF.UnitBox.SetXY(140,160);
-    // var lML = new cUnit('ML'); lML.UnitBox.SetXY(360, 24);
     // lIF.Draw();
-    // lML.Draw();
     ResetCPU();
     document.getElementById("button-next-signals").style.visibility = "visible";
     document.getElementById("button-process-signals").style.visibility = "hidden";
@@ -632,16 +678,16 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         }
     }
 }
-{// class cSR
-    function cSR() {
+{// class cSH
+    function cSH() {
         var SRunit;
-        this.SRunit = new cUnit('SR',460,480,['<','>','WU']);
-        gUnits['SR'] = this;
+        this.SRunit = new cUnit('SH',460,480,['<','>','WU']);
+        gUnits['SH'] = this;
     }
-    cSR.prototype.Draw = function() {
+    cSH.prototype.Draw = function() {
         this.SRunit.Draw();
     }
-    cSR.prototype.Tick = function() {
+    cSH.prototype.Tick = function() {
         var lSignalID;
         var lIR = toBin(gUnits['IR'].IRunit.Value);
         var li1 = lIR.substr(7-1,1) == '1';
