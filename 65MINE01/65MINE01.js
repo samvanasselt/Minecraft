@@ -3,7 +3,6 @@ var gUnits   = [];
 var gBusses  = [];
 var gSignals = [];
 var gSignalIDs = [];
-var gPSigs = [];
 var gSignalPairs  = [];
 var gCycles       = [];
 var gInstructions = [];
@@ -29,7 +28,7 @@ function ResetCPU() {
     }
 }
 {// class cSignalPair
-    function cSignalPair(pPairName, pFromName, pToName = undefined) {
+    function cSignalPair(pPairName, pFromName, pToName) { //  = undefined) {
         var PairName;
         var FromName;
         var ToName;
@@ -168,12 +167,6 @@ function InitInstructions() {
     new cInstruction('11,11,0000','JMP nn','ML=(PC),PC=ML');
     new cInstruction('11,11,0011','JSR nn','ML=(PC),JSR-3,SP=AL,AD=SP,(AD)=PC,PC=ML');
 }
-function InitProgramSignals() {
-    gPSigs.push(['PC.RST'        ]);
-    gPSigs.push(['PC.RST'        ]);
-    gPSigs.push(['PC.WA' ,'AD.RA']);
-    gPSigs.push(['MM.WD' ,'PC.RD']);
-}
 function InitCPUcanvas() {
     var canvas = document.getElementById('cpu');
     if (canvas.getContext){
@@ -192,7 +185,6 @@ function Init65MINE01() {
     InitInstructions();
     ResetClock();
     InitCPUcanvas();
-    InitProgramSignals();
     new cMM();
     new cML();
     new cIC();
@@ -234,7 +226,7 @@ function Init65MINE01() {
         this.h = 40;
     }
     cUnitBox.prototype.SetXY = function(pX,pY) { this.x = pX; this.y = pY; }
-    cUnitBox.prototype.DrawBox = function(pValue = undefined) {
+    cUnitBox.prototype.DrawBox = function(pValue) { // = undefined) {
         // Zie http://www.w3schools.com/colors/colors_converter.asp
         // Rood  =   0
         // Geel  =  60
@@ -267,7 +259,8 @@ function Init65MINE01() {
     }
 }
 {// class cUnit
-    function cUnit(pNaam, pX = undefined, pY = undefined, pInputs = undefined, pOutputs = undefined) {
+    // function cUnit(pNaam, pX = undefined, pY = undefined, pInputs = undefined, pOutputs = undefined) {
+    function cUnit(pNaam, pX, pY, pInputs, pOutputs) {
         var Naam;
         var Value;
         var Inputs;
@@ -354,7 +347,8 @@ function Init65MINE01() {
         this.h = 0;
     }
     cBusBox.prototype.SetXYh = function(pX,pY,pH) { this.x = pX; this.y = pY; this.h = pH;}
-    cBusBox.prototype.DrawBox = function(pValue = undefined) {
+    // cBusBox.prototype.DrawBox = function(pValue = undefined) {
+    cBusBox.prototype.DrawBox = function(pValue) {
         gCanvas.fillStyle = 'hsl(240, 100%, 95%)';
         gCanvas.fillRect(this.x, this.y, this.w, this.h);
         gCanvas.strokeStyle = 'hsl(0, 0%, 25%)'; // Rood, Geen kleur, Kwart licht.
@@ -401,48 +395,47 @@ function Init65MINE01() {
     cSignal.prototype.ID = function() { return this.UnitName + '.' +  this.SignalName; }
 }
 function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName; }
+//  ==========================================================================  //
 {// class cPC
     function cPC() {
-        var PCunit;
-        this.PCunit = new cUnit('PC',360,120,['RD','WD','RU','WA','++','RST']);
+        cUnit.call(this,'PC',360,120,['RD','WD','RU','WA','++','RST']);
         gUnits['PC'] = this;
     }
-    cPC.prototype.Draw = function() {
-        this.PCunit.Draw();
-    }
+    cPC.prototype = Object.create(cUnit.prototype);
     cPC.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.PCunit.Inputs.length; i++) {
-            lSignalID = SignalID('PC',this.PCunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('PC',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.PCunit.Inputs[i]) {
-                    case 'RU' :                       this.PCunit.Value = gBusses['UB'].Value;  break;
-                    case 'RD' :                       this.PCunit.Value = gBusses['DB'].Value;  break;
-                    case 'WD' : gBusses['DB'].Value = this.PCunit.Value;                        break;
-                    case 'WA' : gBusses['AB'].Value = this.PCunit.Value;                        break;
-                    case 'RST': this.PCunit.Value = 255;                                        break;
-                    case '++' : this.PCunit.Value++;  this.PCunit.Value %= 256;                 break;
+                switch(this.Inputs[i]) {
+                    case 'RU' :                       this.Value = gBusses['UB'].Value;  break;
+                    case 'RD' :                       this.Value = gBusses['DB'].Value;  break;
+                    case 'WD' : gBusses['DB'].Value = this.Value;                        break;
+                    case 'WA' : gBusses['AB'].Value = this.Value;                        break;
+                    case 'RST': this.Value = 255;                                        break;
+                    case '++' : this.Value++;  this.Value %= 256;                        break;
                 }
             }
         }
     }
 }
+//  ==========================================================================  //
 {// class cIR
     function cIR() {
-        var IRunit;
-        this.IRunit = new cUnit('IR',140,240,['RD'],['f3','f2','f1','f0']);
+        cUnit.call(this, 'IR',140,240,['RD'],['f3','f2','f1','f0']);
         gUnits['IR'] = this;
     }
-    cIR.prototype.Draw = function() {
-        this.IRunit.Draw();
+    cIR.prototype = Object.create(cUnit.prototype);
+    cIR.prototype.Opcode = function() {
+        return toBin(this.Value);
     }
     cIR.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.IRunit.Inputs.length; i++) {
-            lSignalID = SignalID('IR',this.IRunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('IR',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.IRunit.Inputs[i]) {
-                    case 'RD' : this.IRunit.Value = gBusses['DB'].Value; break;
+                switch(this.Inputs[i]) {
+                    case 'RD' : this.Value = gBusses['DB'].Value; break;
                 }
             }
         }
@@ -450,21 +443,18 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cSP
     function cSP() {
-        var SPunit;
-        this.SPunit = new cUnit('SP',360,200,['RD','WD']);
+        cUnit.call(this, 'SP',360,200,['RD','WD']);
         gUnits['SP'] = this;
     }
-    cSP.prototype.Draw = function() {
-        this.SPunit.Draw();
-    }
+    cSP.prototype = Object.create(cUnit.prototype);
     cSP.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.SPunit.Inputs.length; i++) {
-            lSignalID = SignalID('SP',this.SPunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('SP',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.SPunit.Inputs[i]) {
-                    case 'RD' :                       this.SPunit.Value = gBusses['DB'].Value; break;
-                    case 'WD' : gBusses['DB'].Value = this.SPunit.Value;                       break;
+                switch(this.Inputs[i]) {
+                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    case 'WD' : gBusses['DB'].Value = this.Value;                       break;
                 }
             }
         }
@@ -472,20 +462,18 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cAD
     function cAD() {
-        var ADunit;
-        this.ADunit = new cUnit('AD',720,120,['RA']);
+        cUnit.call(this,'AD',720,120,['RA']);
         gUnits['AD'] = this;
     }
-    cAD.prototype.Draw = function() {
-        this.ADunit.Draw();
-    }
+    cAD.prototype = Object.create(cUnit.prototype);
+    cAD.prototype.Address = function() { return this.Value; }
     cAD.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.ADunit.Inputs.length; i++) {
-            lSignalID = SignalID('AD',this.ADunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('AD',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.ADunit.Inputs[i]) {
-                    case 'RA' :                       this.ADunit.Value = gBusses['AB'].Value; break;
+                switch(this.Inputs[i]) {
+                    case 'RA' :                       this.Value = gBusses['AB'].Value; break;
                 }
             }
         }
@@ -493,22 +481,19 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cML
     function cML() {
-        var MLunit;
-        this.MLunit = new cUnit('ML',360,24,['RD','WD','WA']);
+        cUnit.call(this,'ML',360,24,['RD','WD','WA']);
         gUnits['ML'] = this;
     }
-    cML.prototype.Draw = function() {
-        this.MLunit.Draw();
-    }
+    cML.prototype = Object.create(cUnit.prototype);
     cML.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.MLunit.Inputs.length; i++) {
-            lSignalID = SignalID('ML',this.MLunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('ML',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.MLunit.Inputs[i]) {
-                    case 'RD' :                       this.MLunit.Value = gBusses['DB'].Value; break;
-                    case 'WD' : gBusses['DB'].Value = this.MLunit.Value;                       break;
-                    case 'WA' : gBusses['AB'].Value = this.MLunit.Value;                       break;
+                switch(this.Inputs[i]) {
+                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    case 'WD' : gBusses['DB'].Value = this.Value;                       break;
+                    case 'WA' : gBusses['AB'].Value = this.Value;                       break;
                 }
             }
         }
@@ -516,22 +501,19 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cAC
     function cAC() {
-        var ACunit;
-        this.ACunit = new cUnit('AC',360,560,['RD','WD','RU']);
+        cUnit.call(this,'AC',360,560,['RD','WD','RU']);
         gUnits['AC'] = this;
     }
-    cAC.prototype.Draw = function() {
-        this.ACunit.Draw();
-    }
+    cAC.prototype = Object.create(cUnit.prototype);
     cAC.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.ACunit.Inputs.length; i++) {
-            lSignalID = SignalID('AC',this.ACunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('AC',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.ACunit.Inputs[i]) {
-                    case 'RU' :                       this.ACunit.Value = gBusses['UB'].Value; break;
-                    case 'RD' :                       this.ACunit.Value = gBusses['DB'].Value; break;
-                    case 'WD' : gBusses['DB'].Value = this.ACunit.Value;                       break;
+                switch(this.Inputs[i]) {
+                    case 'RU' :                       this.Value = gBusses['UB'].Value; break;
+                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    case 'WD' : gBusses['DB'].Value = this.Value;                       break;
                 }
             }
         }
@@ -539,20 +521,17 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cFL
     function cFL() {
-        var FLunit;
-        this.FLunit = new cUnit('FL',140,480,['RD','WD'],['N','V','C','Z']);
+        cUnit.call(this,'FL',140,480,['RD','WD'],['N','V','C','Z']);
         gUnits['FL'] = this;
     }
-    cFL.prototype.Draw = function() {
-        this.FLunit.Draw();
-    }
+    cFL.prototype = Object.create(cUnit.prototype);
     cFL.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.FLunit.Inputs.length; i++) {
-            lSignalID = SignalID('FL',this.FLunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('FL',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.FLunit.Inputs[i]) {
-                    case 'RA' :                       this.FLunit.Value = gBusses['AB'].Value; break;
+                switch(this.Inputs[i]) {
+                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
                 }
             }
         }
@@ -560,20 +539,17 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cOA
     function cOA() {
-        var OAunit;
-        this.OAunit = new cUnit('OA',360,480,['RD']);
+        cUnit.call(this,'OA',360,480,['RD']);
         gUnits['OA'] = this;
     }
-    cOA.prototype.Draw = function() {
-        this.OAunit.Draw();
-    }
+    cOA.prototype = Object.create(cUnit.prototype);
     cOA.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.OAunit.Inputs.length; i++) {
-            lSignalID = SignalID('OA',this.OAunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('OA',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.OAunit.Inputs[i]) {
-                    case 'RD' :                       this.OAunit.Value = gBusses['DB'].Value; break;
+                switch(this.Inputs[i]) {
+                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
                 }
             }
         }
@@ -581,27 +557,24 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cOB
     function cOB() {
-        var OBunit;
-        this.OBunit = new cUnit('OB',360,320,['1','-B','RD']);
+        cUnit.call(this,'OB',360,320,['1','-B','RD']);
         gUnits['OB'] = this;
     }
-    cOB.prototype.Draw = function() {
-        this.OBunit.Draw();
-    }
+    cOB.prototype = Object.create(cUnit.prototype);
     cOB.prototype.Tick = function() {
         var lSignalID;
-        var lIR = toBin(gUnits['IR'].IRunit.Value);
+        var lIR = gUnits['IR'].Opcode();
         var li3 = lIR.substr(7-3,1) == '1';
         var li1 = lIR.substr(7-1,1) == '1';
         var li0 = lIR.substr(7-0,1) == '1';
         var FlagNegate = !li3 && li1; gSignals['OB.-B'].Level = (FlagNegate) ? 1 : 0;
         var FlagRead1  = !li3 && li0; gSignals['OB.1' ].Level = (FlagRead1 ) ? 1 : 0;
-        for (var i = 0; i < this.OBunit.Inputs.length; i++) {
-            lSignalID = SignalID('OB',this.OBunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('OB',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.OBunit.Inputs[i]) {
-                    case 'RD': this.OBunit.Value = (FlagRead1) ? 1 : gBusses['DB'].Value;
-                               if (FlagNegate) this.OBunit.Value = -this.OBunit.Value;
+                switch(this.Inputs[i]) {
+                    case 'RD': this.Value = (FlagRead1) ? 1 : gBusses['DB'].Value;
+                               if (FlagNegate) this.Value = -this.Value;
                                break;
                 }
             }
@@ -610,27 +583,24 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cOC
     function cOC() {
-        var OCunit;
-        this.OCunit = new cUnit('OC',360,400,['0','C','SC']); //  SC = Set Carry for ALU computation
-        this.OCunit.Value = 0;
+        cUnit.call(this,'OC',360,400,['0','C','RD']); //  RD = Set Carry for ALU computation
+        this.Value = 0;
         gUnits['OC'] = this;
     }
-    cOC.prototype.Draw = function() {
-        this.OCunit.Draw();
-    }
+    cOC.prototype = Object.create(cUnit.prototype);
     cOC.prototype.Tick = function() {
         var lSignalID;
-        var lIR = toBin(gUnits['IR'].IRunit.Value);
+        var lIR = gUnits['IR'].Opcode();
         var li5 = lIR.substr(7-5,1) == '1';
         var li0 = lIR.substr(7-0,1) == '1';
         var FlagRead0  = li5 || li0;
         gSignals['OC.0'].Level = ( FlagRead0) ? 1 : 0;
         gSignals['OC.C'].Level = (!FlagRead0) ? 1 : 0;
-        for (var i = 0; i < this.OCunit.Inputs.length; i++) {
-            lSignalID = SignalID('OC',this.OCunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('OC',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.OCunit.Inputs[i]) {
-                    case 'SC': this.OCunit.Value = (FlagRead0) ? 0 : 1; break;
+                switch(this.Inputs[i]) {
+                    case 'RD': this.Value = (FlagRead0) ? 0 : 1; break;
                 }
             }
         }
@@ -638,17 +608,14 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cAL
     function cAL() {
-        var ALunit;
-        this.ALunit = new cUnit('AL',460,320,['+','AND','OR','XOR','WU']); //  SC = Set Carry for ALU computation
-        this.ALunit.Value = 0;
+        cUnit.call(this,'AL',460,320,['+','AND','OR','XOR','WU']); //  OC.RD = Set Carry for ALU computation
+        this.Value = 0;
         gUnits['AL'] = this;
     }
-    cAL.prototype.Draw = function() {
-        this.ALunit.Draw();
-    }
+    cAL.prototype = Object.create(cUnit.prototype);
     cAL.prototype.Tick = function() {
         var lSignalID;
-        var lIR = toBin(gUnits['IR'].IRunit.Value);
+        var lIR = gUnits['IR'].Opcode();
         var li5 = lIR.substr(7-5,1) == '1';
         var li3 = lIR.substr(7-3,1) == '1';
         var li1 = lIR.substr(7-1,1) == '1';
@@ -661,18 +628,18 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         gSignals['AL.AND'].Level = (FlagAnd     ) ? 1 : 0;
         gSignals['AL.OR' ].Level = (FlagOr      ) ? 1 : 0;
         gSignals['AL.XOR'].Level = (FlagXor     ) ? 1 : 0;
-        var lOA = gUnits['OA'].OAunit.Value;
-        var lOB = gUnits['OB'].OBunit.Value;
-        var lOC = gUnits['OC'].OCunit.Value;
-        if (!FlagLogical) this.ALunit.Value = lOA + lOB + lOC;
-        if (FlagAnd     ) this.ALunit.Value = lOA & lOB;
-        if (FlagOr      ) this.ALunit.Value = lOA | lOB;
-        if (FlagXor     ) this.ALunit.Value = lOA ^ lOB;
-        for (var i = 0; i < this.ALunit.Inputs.length; i++) {
-            lSignalID = SignalID('AL',this.ALunit.Inputs[i]);
+        var lOA = gUnits['OA'].Value;
+        var lOB = gUnits['OB'].Value;
+        var lOC = gUnits['OC'].Value;
+        if (!FlagLogical) this.Value = lOA + lOB + lOC;
+        if (FlagAnd     ) this.Value = lOA & lOB;
+        if (FlagOr      ) this.Value = lOA | lOB;
+        if (FlagXor     ) this.Value = lOA ^ lOB;
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('AL',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.ALunit.Inputs[i]) {
-                    case 'WU' : gBusses['UB'].Value = this.ALunit.Value; break;
+                switch(this.Inputs[i]) {
+                    case 'WU' : gBusses['UB'].Value = this.Value; break;
                 }
             }
         }
@@ -680,28 +647,25 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cSH
     function cSH() {
-        var SRunit;
-        this.SRunit = new cUnit('SH',460,480,['<','>','WU']);
+        cUnit.call(this,'SH',460,480,['<','>','WU']);
         gUnits['SH'] = this;
     }
-    cSH.prototype.Draw = function() {
-        this.SRunit.Draw();
-    }
+    cSH.prototype = Object.create(cUnit.prototype);
     cSH.prototype.Tick = function() {
         var lSignalID;
-        var lIR = toBin(gUnits['IR'].IRunit.Value);
+        var lIR = gUnits['IR'].Opcode();
         var li1 = lIR.substr(7-1,1) == '1';
         var FlagShiftRight = li1;
-        gSignals['SR.<'].Level = (FlagShiftRight) ? 0 : 1;
-        gSignals['SR.>'].Level = (FlagShiftRight) ? 1 : 0;
-        var lOA = gUnits['OA'].OAunit.Value;
-        var lOC = gUnits['OC'].OCunit.Value;
-        this.SRunit.Value = (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : lOA << 1 + lOC;
-        for (var i = 0; i < this.SRunit.Inputs.length; i++) {
-            lSignalID = SignalID('SR',this.SRunit.Inputs[i]);
+        gSignals['SH.<'].Level = (FlagShiftRight) ? 0 : 1;
+        gSignals['SH.>'].Level = (FlagShiftRight) ? 1 : 0;
+        var lOA = gUnits['OA'].Value;
+        var lOC = gUnits['OC'].Value;
+        this.Value = (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : lOA << 1 + lOC;
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('SH',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.SRunit.Inputs[i]) {
-                    case 'WU' : gBusses['UB'].Value = this.SRunit.Value; break;
+                switch(this.Inputs[i]) {
+                    case 'WU' : gBusses['UB'].Value = this.Value; break;
                 }
             }
         }
@@ -709,20 +673,17 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cCK
     function cCK() {
-        var CKunit;
-        this.CKunit = new cUnit('CK',20,160,['p0','p1']);
+        cUnit.call(this,'CK',20,160,['p0','p1']);
         gUnits['CK'] = this;
     }
-    cCK.prototype.Draw = function() {
-        this.CKunit.Draw();
-    }
+    cCK.prototype = Object.create(cUnit.prototype);
     cCK.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.CKunit.Inputs.length; i++) {
-            lSignalID = SignalID('CK',this.CKunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('CK',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.CKunit.Inputs[i]) {
-                    case 'RA' :                       this.CKunit.Value = gBusses['AB'].Value; break;
+                switch(this.Inputs[i]) {
+                    case 'RA' :                       this.Value = gBusses['AB'].Value; break;
                 }
             }
         }
@@ -730,20 +691,17 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cIC
     function cIC() {
-        var ICunit;
-        this.ICunit = new cUnit('IC',20,240,['p0','p1'],['t0','t1','t2','t3','t4','t5','t6','t7']);
+        cUnit.call(this,'IC',20,240,['p0','p1'],['t0','t1','t2','t3','t4','t5','t6','t7']);
         gUnits['IC'] = this;
     }
-    cIC.prototype.Draw = function() {
-        this.ICunit.Draw();
-    }
+    cIC.prototype = Object.create(cUnit.prototype);
     cIC.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.ICunit.Inputs.length; i++) {
-            lSignalID = SignalID('IC',this.ICunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('IC',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.ICunit.Inputs[i]) {
-                    case 'RA' :                       this.ICunit.Value = gBusses['AB'].Value; break;
+                switch(this.Inputs[i]) {
+                    case 'RA' :                       this.Value = gBusses['AB'].Value; break;
                 }
             }
         }
@@ -751,7 +709,8 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cMM
     function cMM() {
-        var MMunit;
+        cUnit.call(this,'MM',140,24,['RD','WD']);
+        gUnits['MM'] = this;
         var Values;
         this.Values = [];
         for (var i = 0; i < 256; i++) this.Values.push(Math.floor(Math.random() * 256));
@@ -766,21 +725,20 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         this.Values[lPC++] = parseInt('00010101',2); // TAS    instructie
         this.Values[lPC++] = parseInt('11110000',2); // JMP nn instructie
         this.Values[lPC++] = parseInt('10000000',2); //     nn = $80
-        this.MMunit = new cUnit('MM',140,24,['RD','WD']);
-        gUnits['MM'] = this;
     }
-    cMM.prototype.GetValue = function() { return this.Values[gUnits['AD'].ADunit.Value]; }
-    cMM.prototype.SetValue = function(pValue) {  this.Values[gUnits['AD'].ADunit.Value] = pValue; }
+    cMM.prototype = Object.create(cUnit.prototype);
+    cMM.prototype.GetValue = function() { return this.Values[gUnits['AD'].Address()]; }
+    cMM.prototype.SetValue = function(pValue) {  this.Values[gUnits['AD'].Address()] = pValue; }
     cMM.prototype.Draw = function() {
-        this.MMunit.Value = this.GetValue();
-        this.MMunit.Draw();
+        this.Value = this.GetValue();
+        cUnit.prototype.Draw.call(this);
     }
     cMM.prototype.Tick = function() {
         var lSignalID;
-        for (var i = 0; i < this.MMunit.Inputs.length; i++) {
-            lSignalID = SignalID('MM',this.MMunit.Inputs[i]);
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('MM',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
-                switch(this.MMunit.Inputs[i]) {
+                switch(this.Inputs[i]) {
                     case 'RD' :                       this.SetValue(gBusses['DB'].Value); break;
                     case 'WD' : gBusses['DB'].Value = this.GetValue();                    break;
                 }
@@ -834,13 +792,13 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     function PLA(pPhase) {
         if (pPhase == 0) return ['PC.WA','AD.RA','MM.WD','IR.RD'];
         if (pPhase == 1) return ['PC.++'];
-        var lIns = gUnits['IR'].IRunit.Value;    //  Instructie
+        var lIns = gUnits['IR'].Opcode();    //  Instructie
         switch (lIns) {
-            case parseInt('00000001',2): return PLA_INA   (pPhase); break;   // INA
-            case parseInt('11010000',2): return PLA_LDA_nn(pPhase); break;   // LDA nn
-            case parseInt('11010001',2): return PLA_STA_nn(pPhase); break;   // STA nn
-            case parseInt('00010101',2): return PLA_TAS   (pPhase); break;   // TAS
-            case parseInt('11110000',2): return PLA_JMP_nn(pPhase); break;   // JMP nn
+            case '00000001': return PLA_INA   (pPhase); break;   // INA
+            case '11010000': return PLA_LDA_nn(pPhase); break;   // LDA nn
+            case '11010001': return PLA_STA_nn(pPhase); break;   // STA nn
+            case '00010101': return PLA_TAS   (pPhase); break;   // TAS
+            case '11110000': return PLA_JMP_nn(pPhase); break;   // JMP nn
         }
     }
 }
@@ -852,25 +810,7 @@ function ResetClock() {
     NextTick.Cycle = 0;
     NextTick.Time  = 0;
 }
-function NextTick() {
-    var lSignalIDs = [];
-    var lNextIDs   = [];
-    lSignalIDs = (NextTick.Time < gPSigs.length) ? gPSigs[NextTick.Time] : [];
-    NextTick.Time++;
-    lNextIDs = (NextTick.Time < gPSigs.length) ? gPSigs[NextTick.Time] : [];
-    console.log(lSignalIDs);
-    document.getElementById("tick-signals").innerHTML += '<br />' + lNextIDs;
-    if (lSignalIDs.length > 0) {
-        lSignalIDs.forEach(function(ID) { gSignals[ID].Level = 1 });
-        lSignalIDs.forEach(function(ID) {
-            var lUnitID = gSignals[ID].UnitName.substr(0,2);
-            gUnits[lUnitID].Tick();
-        });
-    }
-    Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
-    Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
-    if (lSignalIDs.length > 0) lSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
-}
+function NextTick() {}
 function NextSignals() {
     gSignalIDs = PLA(NextTick.Cycle);
     document.getElementById("tick-signals").innerHTML += '<br />' + gSignalIDs;
@@ -895,7 +835,7 @@ function ProcessSignals() {
         });
     }
     gUnits['AL'].Tick();
-    gUnits['SR'].Tick();
+    gUnits['SH'].Tick();
     Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });

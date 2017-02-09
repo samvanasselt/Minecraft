@@ -1,0 +1,27 @@
+// var gPSigs = [];
+// function InitProgramSignals() {
+    // gPSigs.push(['PC.RST'        ]);
+    // gPSigs.push(['PC.RST'        ]);
+    // gPSigs.push(['PC.WA' ,'AD.RA']);
+    // gPSigs.push(['MM.WD' ,'PC.RD']);
+// }
+    // InitProgramSignals();
+// function NextTick() {
+    // var lSignalIDs = [];
+    // var lNextIDs   = [];
+    // lSignalIDs = (NextTick.Time < gPSigs.length) ? gPSigs[NextTick.Time] : [];
+    // NextTick.Time++;
+    // lNextIDs = (NextTick.Time < gPSigs.length) ? gPSigs[NextTick.Time] : [];
+    // console.log(lSignalIDs);
+    // document.getElementById("tick-signals").innerHTML += '<br />' + lNextIDs;
+    // if (lSignalIDs.length > 0) {
+        // lSignalIDs.forEach(function(ID) { gSignals[ID].Level = 1 });
+        // lSignalIDs.forEach(function(ID) {
+            // var lUnitID = gSignals[ID].UnitName.substr(0,2);
+            // gUnits[lUnitID].Tick();
+        // });
+    // }
+    // Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
+    // Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
+    // if (lSignalIDs.length > 0) lSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
+// }
