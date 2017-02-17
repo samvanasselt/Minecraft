@@ -2,3 +2,5 @@
 .signals { float:left; min-width:240px;}
 .divleft { float:left; }
 .code { font-family:"Courier New"; font-size:12px; }
+.instruction {min-height:100px;}
+.infoblock {min-height:200px;}
