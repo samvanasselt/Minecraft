@@ -246,8 +246,8 @@ function Init65MINE01() {
     // var lIF = new cUnit('IF'); lIF.UnitBox.SetXY(140,160);
     // lIF.Draw();
     ResetCPU();
-    document.getElementById("button-next-signals").style.visibility = "visible";
-    document.getElementById("button-process-signals").style.visibility = "hidden";
+    // document.getElementById("button-next-signals").style.visibility = "visible";
+    // document.getElementById("button-process-signals").style.visibility = "hidden";
 }
 {// class cUnitBox
     function cUnitBox(pNaam) {
@@ -262,17 +262,17 @@ function Init65MINE01() {
         this.h = 40;
     }
     cUnitBox.prototype.SetXY = function(pX,pY) { this.x = pX; this.y = pY; }
-    cUnitBox.prototype.LineToBus = function(pSignalID, pBusID)  {
+    cUnitBox.prototype.LineToBus = function(pSignalID, pBusID, pRW)  {
         var lBusBox = gBusses[pBusID].BusBox;
         var x = (this.x < lBusBox.x) ? this.x + this.w : lBusBox.x + lBusBox.w;
         var w = (this.x < lBusBox.x) ? lBusBox.x - x   : this.x - x;
-        var y = this.y + 28;
-        // gCanvas.strokeStyle = 'hsl(0, 0%, 75%)'; // Rood, Geen kleur, Driekwart licht.
-        if (gSignals[pSignalID].Level == 1) gCanvas.strokeStyle = 'hsl(  0, 100%, 75%)';
+        var y = (pRW == 'RD') ? this.y + 32 : this.y + 24;
+        if (gSignals[pSignalID].Level == 1) gCanvas.strokeStyle = (pRW == 'RD') ? 'hsl(  0, 100%, 75%)' : 'hsl(120, 100%, 75%)';
         else                                gCanvas.strokeStyle = 'hsl(  0,   0%, 75%)';
         gCanvas.beginPath();
         gCanvas.rect(x, y, w, 3);
         gCanvas.stroke();
+        if (gSignals[pSignalID].Level == 1) lBusBox.DrawActiveBus();
     }
     cUnitBox.prototype.DrawBox = function(pValue) { // = undefined) {
         // Zie http://www.w3schools.com/colors/colors_converter.asp
@@ -348,15 +348,16 @@ function Init65MINE01() {
                 gCanvas.fillText(this.Inputs[i], x + 10, y + 6);
                 y += 10;
                 switch (this.Inputs[i]) {
-                    case 'RD': this.UnitBox.LineToBus(lSignalID,'DB');  break;
-                    case 'WD': this.UnitBox.LineToBus(lSignalID,'DB');  break;
-                    case 'RU': this.UnitBox.LineToBus(lSignalID,'UB');  break;
-                    case 'WU': this.UnitBox.LineToBus(lSignalID,'UB');  break;
-                    case 'RA': this.UnitBox.LineToBus(lSignalID,'AB');  break;
-                    case 'WA': this.UnitBox.LineToBus(lSignalID,'AB');  break;
-                    default:                                            break;
+                    case 'RD': this.UnitBox.LineToBus(lSignalID,'DB','RD');  break;
+                    case 'WD': this.UnitBox.LineToBus(lSignalID,'DB','WD');  break;
+                    case 'RU': this.UnitBox.LineToBus(lSignalID,'UB','RD');  break;
+                    case 'WU': this.UnitBox.LineToBus(lSignalID,'UB','WD');  break;
+                    case 'RA': this.UnitBox.LineToBus(lSignalID,'AB','RD');  break;
+                    case 'WA': this.UnitBox.LineToBus(lSignalID,'AB','WD');  break;
+                    default:                                                 break;
                 }
             }
+            gCanvas.strokeStyle = 'hsl(  0,   0%, 50%)';
             gCanvas.beginPath();
             gCanvas.rect(this.UnitBox.x, this.UnitBox.y + 40, this.UnitBox.w, 10 * n + 4);
             gCanvas.stroke();
@@ -384,6 +385,7 @@ function Init65MINE01() {
                 y += 10;
             }
             y = this.UnitBox.y + 40 + 10 * ni + 4;
+            gCanvas.strokeStyle = 'hsl(  0,   0%, 50%)';
             gCanvas.beginPath();
             gCanvas.rect(this.UnitBox.x, y, this.UnitBox.w, 10 * n + 4);
             gCanvas.stroke();
@@ -404,8 +406,15 @@ function Init65MINE01() {
         this.h = 0;
     }
     cBusBox.prototype.SetXYh = function(pX,pY,pH) { this.x = pX; this.y = pY; this.h = pH;}
+    cBusBox.prototype.DrawActiveBus = function() {
+        gCanvas.strokeStyle = 'hsl(60, 100%, 75%)'; // Geel, Max verzadiging, Driekwart licht.
+        gCanvas.beginPath();
+        gCanvas.rect(this.x, this.y, this.w, this.h);
+        gCanvas.stroke();
+    }
     // cBusBox.prototype.DrawBox = function(pValue = undefined) {
     cBusBox.prototype.DrawBox = function(pValue) {
+        gCanvas.clearRect(this.x, this.y, this.w, this.h);
         gCanvas.fillStyle = 'hsl(240, 100%, 95%)';
         gCanvas.fillRect(this.x, this.y, this.w, this.h);
         gCanvas.strokeStyle = 'hsl(0, 0%, 25%)'; // Rood, Geen kleur, Kwart licht.
@@ -478,13 +487,25 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 }
 {// class cIC
     function cIC() {
+        var RunState = false;
         cUnit.call(this,'IC',20,200,['p0','p1'],['t0','t1','t2','t3','t4','t5','t6','t7']);
         gUnits['IC'] = this;
     }
     cIC.prototype = Object.create(cUnit.prototype);
     cIC.prototype.ResetIC = function(pCycle = 7) {
+        this.RunState = false;
         cIC.Cycle = pCycle;
         cPLA.SetName = 'IR=(PC)';
+    }
+    cIC.prototype.ToggleRunState = function() {
+        if (this.RunState) {
+            document.getElementById("button-next-pair").style.display = "inline";
+            document.getElementById("button-process-pair").style.visibility = "hidden";
+        } else {
+            document.getElementById("button-next-pair").style.display = "none";
+            document.getElementById("button-process-pair").style.visibility = "visible";
+        }
+        this.RunState = !this.RunState;
     }
     cIC.prototype.CycleShow = function() {
         // var lSignalText = '<br />T' + cIC.Cycle + ': ' + cPLA.SetName + '<br />...';
@@ -518,12 +539,10 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairs.length) {
             if (cPLA.SetIndex == 0) {
                 document.getElementById("PLA-signal-pair").innerHTML = '';
-                // document.getElementById("PLA-signals").innerHTML = '';
             }
             var lPairName = gSignalSets[cPLA.SetName].SignalPairs[cPLA.SetIndex];
             document.getElementById("PLA-signal-pair").innerHTML += '<br />' + lPairName;
             document.getElementById("PLA-signal-pair").innerHTML += ': ' + gSignalPairs[lPairName].FromName + ' ' + gSignalPairs[lPairName].ToName;
-            // document.getElementById("PLA-signals").innerHTML += '<br />' + gSignalPairs[lPairName].FromName + ' ' + gSignalPairs[lPairName].ToName;
         }
     }
     cIC.prototype.SignalRun = function() {
@@ -534,13 +553,11 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             lSignalPair.Tick();
             gUnits['AL'].Tick();
             gUnits['SH'].Tick();
-            Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
             Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
+            Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
             lSignalPair.SetLevel(0);
         }
-        // document.getElementById("button-next-pair").style.visibility = "visible";
-        document.getElementById("button-process-pair").style.visibility = "hidden";
-        document.getElementById("button-next-pair").style.display = "inline";
+        this.ToggleRunState();
     }
     cIC.prototype.SignalNext = function() {
         cPLA.SetIndex++;
@@ -548,9 +565,10 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             this.CycleNext();
             this.CycleShow();
         }
-        // document.getElementById("button-next-pair").style.visibility = "hidden";
-        document.getElementById("button-process-pair").style.visibility = "visible";
-        document.getElementById("button-next-pair").style.display = "none";
+        this.ToggleRunState();
+    }
+    cIC.prototype.NextState = function() {
+        if (this.RunState) this.SignalRun(); else this.SignalNext();
     }
 }
 function NextPair()    { gUnits['IC'].SignalNext(); gUnits['IC'].SignalShow(); }
@@ -974,8 +992,8 @@ function NextSignals() {
         gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 1 });
         Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
         Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
-        document.getElementById("button-next-signals").style.visibility = "hidden";
-        document.getElementById("button-process-signals").style.visibility = "visible";
+        // document.getElementById("button-next-signals").style.visibility = "hidden";
+        // document.getElementById("button-process-signals").style.visibility = "visible";
     }
 }
 function ProcessSignals() {
@@ -992,14 +1010,16 @@ function ProcessSignals() {
     Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
-    document.getElementById("button-next-signals").style.visibility = "visible";
-    document.getElementById("button-process-signals").style.visibility = "hidden";
+    // document.getElementById("button-next-signals").style.visibility = "visible";
+    // document.getElementById("button-process-signals").style.visibility = "hidden";
 }
 function HaltCPU() { clearInterval(fRunSignal); }
-function RunSignal() {
-    NextSignals();
-    ProcessSignals();
-}
+// function RunSignal() {
+    // NextSignals();
+    // ProcessSignals();
+// }
+function RunStates() { gUnits['IC'].NextState(); }
 function RunSignals() {
-    fRunSignal = setInterval(RunSignal, 1000);
+    // fRunSignal = setInterval(RunSignal, 1000);
+    fRunSignal = setInterval(RunStates, 1000);
 }

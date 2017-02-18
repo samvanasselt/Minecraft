@@ -9,14 +9,21 @@
     <button onclick="NextTick()">Next Tick</button>
     <button onclick="ResetClock()">Reset Clock</button>
     -->
+    &#x2534;
+    &#x252C;
+    <!-- https://www.w3schools.com/charsets/ref_utf_box.asp -->
     <div class="signals">
         <button id="button-next-pair" onclick="NextPair()">Next Pair</button>
         <button id="button-process-pair" onclick="ProcessPair()">Process Pair</button>
+        <br />
+        <button onclick="RunSignals()">Run</button>
+        <button onclick="HaltCPU()">Halt</button>
         <div class="instruction"><h3>Instruction</h3><p              id="instruction"></p></div>
         <div class="infoblock"><h4>Cycle</h4>      <p class="code" id="PLA-cycle"></p></div>
         <h4>Signal Pair</h4><p class="code" id="PLA-signal-pair">-</p>
         <!-- <h4>Signals</h4>    <p class="code" id="PLA-signals">-</p> -->
     </div>
+    <!--
     <div class="signals">
         <h3>Signals</h3>
         <button id="button-next-signals" onclick="NextSignals()">Next Signals</button>
@@ -26,6 +33,7 @@
         <button onclick="HaltCPU()">Halt</button>
         <p class="code" id="tick-signals"></p>
     </div>
+    -->
     <div class="divleft"><canvas id="cpu"  width="1000" height="800">Canvas wordt niet ondersteund door deze browser</canvas></div>
     <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
 </body>
