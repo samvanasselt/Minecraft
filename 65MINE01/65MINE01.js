@@ -83,7 +83,11 @@ function InitSignalPairs() {
     new cSignalPair('MM=PC','PC.WD','MM.RD');   //  Load memory address AD from program counter (write to memory)
     new cSignalPair('MM=FL','FL.WD','MM.RD');   //  Load memory address AD from flags           (write to memory)
     new cSignalPair('FL=MM','MM.WD','FL.RD');   //  Load flags from memory address AD
-    new cSignalPair('CY=i1'        ,'FL.RC');   //  Read Carry from instruction bit 1
+    new cSignalPair('FL=SH'        ,'FL.SH');   //  Load N   C Z flags from ALU
+    new cSignalPair('FL=AL'        ,'FL.AL');   //  Load N V C Z flags from ALU
+    new cSignalPair('FL=NZ'        ,'FL.NZ');   //  Load N     Z flags from ALU
+    new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
+    new cSignalPair('CY=i1'        ,'FL.CY');   //  Read Carry from instruction bit 1
 }
 {// class gCycleSignalSet
     function cSignalSet(pSetName, pSignalPairs) {
@@ -96,35 +100,37 @@ function InitSignalPairs() {
 }
 function InitCycles() {
     if (gSignalPairs.length == 0) InitSignalPairs();
-    new cSignalSet('IR=(PC)'  ,'AD=PC,IR=MM'            );  //  Read instruction register from memory location PC
-    new cSignalSet('PC++'     ,'PC++'                   );  //  Increment program counter
-    new cSignalSet('PC=ML'    ,'PC=ML'                  );  //  Jump to location ML
-    new cSignalSet('PC=AL'    ,'PC=AL'                  );  //  Jump to location calculated by ALU for branch
-    new cSignalSet('PC=(SP)'  ,'AD=SP,PC=MM'            );  //  Read program counter from memory location SP
-    new cSignalSet('AD=ML'    ,'AD=ML'                  );  //  Prepare save to memory location ML
-    new cSignalSet('ML=(PC)'  ,'AD=PC,ML=MM'            );  //  Read memory latch from memory location PC
-    new cSignalSet('AL=AC±1'  ,'OA=AC,OB,OC'            );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
-    new cSignalSet('LDA #'    ,      'AC=ML,PC++'       );  //  AC=ML  , PC++
-    new cSignalSet('LDA nn'   ,'AD=ML,AC=MM,PC++'       );  //  AC=(ML), PC++
-    new cSignalSet('AC=AL'    ,'AC=AL'                  );  //  Store calculation result in accumulator
-    new cSignalSet('AC=SH'    ,'AC=SH'                  );  //  Store shift result in accumulator
-    new cSignalSet('AC=A±ML'  ,      'OB=ML,OC,AC=AL'   );  //  Add ML to or Subtract ML from accumulator
-    new cSignalSet('AC=A±(ML)','AD=ML,OB=MM,OC,AC=AL'   );  //  Add (ML) to or Subtract (ML) from accumulator
-    new cSignalSet('AC=A·(ML)','AD=ML,OB=MM,OC,AC=AL'   );  //  Logical operation between (ML) and accumulator
-    new cSignalSet('AC=A·ML'  ,      'OB=ML,OC,AC=AL'   );  //  Logical operation between ML and accumulator
-    new cSignalSet('AC=(SP)'  ,'AD=SP,AC=MM'            );  //  Load accumulator from memory location SP
-    new cSignalSet('AC=SP'    ,'AC=SP'                  );  //  Load accumulator from stack pointer
-    new cSignalSet('(AD)=AC'  ,'MM=AC'                  );  //  Store accumulator in memory location AD
-    new cSignalSet('(AD)=FL'  ,'MM=FL'                  );  //  Store flags in memory location AD (PHP)
-    new cSignalSet('(AD)=PC'  ,'MM=PC'                  );  //  Store PC in memory location AD (JSR)
-    new cSignalSet('AL=SP±1'  ,'OA=SP,OB,OC'            );  //  Calculate stack pointer ± 1
-    new cSignalSet('AL=AC'    ,'OA=AC,OC'               );  //  Calculate A + C from instruction
-    new cSignalSet('CY=i1'    ,'CY=i1'                  );  //  Read Carry from instruction bit 1
-    new cSignalSet('SP=AL'    ,'SP=AL'                  );  //  Load stack pointer from ALU
-    new cSignalSet('SP=AC'    ,'SP=AC'                  );  //  Load stack pointer from accumulator
-    new cSignalSet('BRA-3'    ,'AD=PC,OB=ML,OC,PC++'    );  //  B=ML, PC++
-    new cSignalSet('JSR-3'    ,'OA=SP,OB,OC,PC++'       );  //  AL=SP+1, PC++
-    new cSignalSet('NOP'      ,undefined                );  //  No operation
+    new cSignalSet('IR=(PC)'  ,'AD=PC,IR=MM'                );  //  Read instruction register from memory location PC
+    new cSignalSet('PC++'     ,'PC++'                       );  //  Increment program counter
+    new cSignalSet('PC=ML'    ,'PC=ML'                      );  //  Jump to location ML
+    new cSignalSet('PC=AL'    ,'PC=AL'                      );  //  Jump to location calculated by ALU for branch
+    new cSignalSet('PC=(SP)'  ,'AD=SP,PC=MM'                );  //  Read program counter from memory location SP
+    new cSignalSet('AD=ML'    ,'AD=ML'                      );  //  Prepare save to memory location ML
+    new cSignalSet('ML=(PC)'  ,'AD=PC,ML=MM'                );  //  Read memory latch from memory location PC
+    new cSignalSet('AL=AC±1'  ,'OA=AC,OB,OC'                );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
+    new cSignalSet('LDA #'    ,      'AC=ML,FL=DB,PC++'     );  //  Load accumulator from memory latch and set N- and Z-flag, PC++
+    new cSignalSet('LDA nn'   ,'AD=ML,AC=MM,FL=DB,PC++'     );  //  Load accumulator from memory location ML and set N,Z-flags, PC++
+    new cSignalSet('AC=AL'    ,'AC=AL,FL=AL'                );  //  Store calculation result in accumulator and set V,N,C,Z-flags
+    new cSignalSet('AC=SH'    ,'AC=SH,FL=SH'                );  //  Store shift result in accumulator and set N,C,Z-flags
+    new cSignalSet('FL=A±ML'  ,      'OB=ML,OC,FL=AL'       );  //  Compare ML with accumulator
+    new cSignalSet('FL=A±(ML)','AD=ML,OB=MM,OC,FL=AL'       );  //  Compare (ML) with accumulator
+    new cSignalSet('AC=A±ML'  ,      'OB=ML,OC,AC=AL,FL=AL' );  //  Add ML to or Subtract ML from accumulator
+    new cSignalSet('AC=A±(ML)','AD=ML,OB=MM,OC,AC=AL,FL=AL' );  //  Add (ML) to or Subtract (ML) from accumulator
+    new cSignalSet('AC=A·(ML)','AD=ML,OB=MM,OC,AC=AL,FL=NZ' );  //  Logical operation between (ML) and accumulator
+    new cSignalSet('AC=A·ML'  ,      'OB=ML,OC,AC=AL,FL=NZ' );  //  Logical operation between ML and accumulator
+    new cSignalSet('AC=(SP)'  ,'AD=SP,AC=MM,FL=DB'          );  //  Load accumulator from memory location SP
+    new cSignalSet('AC=SP'    ,'AC=SP,FL=DB'                );  //  Load accumulator from stack pointer
+    new cSignalSet('(AD)=AC'  ,'MM=AC,FL=DB'                );  //  Store accumulator in memory location AD
+    new cSignalSet('(AD)=FL'  ,'MM=FL'                      );  //  Store flags in memory location AD (PHP)
+    new cSignalSet('(AD)=PC'  ,'MM=PC'                      );  //  Store PC in memory location AD (JSR)
+    new cSignalSet('AL=SP±1'  ,'OA=SP,OB,OC'                );  //  Calculate stack pointer ± 1
+    new cSignalSet('AL=AC'    ,'OA=AC,OC'                   );  //  Calculate A + C from instruction
+    new cSignalSet('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
+    new cSignalSet('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
+    new cSignalSet('SP=AC'    ,'SP=AC,FL=DB'                );  //  Load stack pointer from accumulator
+    new cSignalSet('BRA-3'    ,'AD=PC,OB=ML,OC,PC++'        );  //  B=ML, PC++
+    new cSignalSet('JSR-3'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
+    new cSignalSet('NOP'      ,undefined                    );  //  No operation
 }
 {// class cInstruction
     function cInstruction(pOpcode, pMnemonic, pSignalSets) {
@@ -442,11 +448,21 @@ function Init65MINE01() {
         var Naam;
         var Value;
         var BusBox;
+        var Nflag;
+        var Zflag;
         this.Naam    = pNaam;
         this.Value   = Math.floor(Math.random() * 256);
         this.BusBox = new cBusBox(this.Naam);
     }
     cBus.prototype.Draw = function() { this.BusBox.DrawBox(this.Value); }
+    cBus.prototype.Flags = function() {
+        var lFlags = 0;
+        this.Nflag = (this.Value > 127) ? true : false;
+        this.Zflag = (this.Value == 0);
+        if ( this.Nflag) lFlags |= 128;
+        if (!this.Zflag) lFlags |=   1;
+        return lFlags;
+    }
 }
 {// class cSignal
     function cSignal(pUnitName, pSignalName) {
@@ -603,6 +619,7 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
         gUnits['IR'] = this;
     }
     cIR.prototype = Object.create(cUnit.prototype);
+    cIR.prototype.Bit1     = function() { return this.Opcode().substr(7-1,1); }
     cIR.prototype.Opcode   = function() { return toBin(this.Value); }
     cIR.prototype.Mnemonic = function() {
         try {
@@ -724,10 +741,22 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
 }
 {// class cFL
     function cFL() {
-        cUnit.call(this,'FL',20,480,['RD','WD'],['N','V','C','Z']);
+        cUnit.call(this,'FL',20,480,['RD','WD','AL','NZ','SH','DB','CY'],['N','V','C','Z']);
+        this.Value &= this.Mask('NV....CZ',false);
         gUnits['FL'] = this;
     }
     cFL.prototype = Object.create(cUnit.prototype);
+    cFL.prototype.Mask = function(pFlags, pInvert) {
+        var lMask = 0;
+        if (pFlags.search('N') >= 0) lMask |= parseInt('10000000',2);
+        if (pFlags.search('V') >= 0) lMask |= parseInt('01000000',2);
+        if (pFlags.search('C') >= 0) lMask |= parseInt('00000010',2);
+        if (pFlags.search('Z') >= 0) lMask |= parseInt('00000001',2);
+        return (pInvert) ? 255 - lMask : lMask;
+    }
+    cFL.prototype.SetFlags = function(pFlags, pValue) {
+        this.Value = (this.Mask(pFlags,false) & pValue) | ( this.Mask(pFlags,true) & this.Value);
+    }
     cFL.prototype.Tick = function() {
         var lSignalID;
         for (var i = 0; i < this.Inputs.length; i++) {
@@ -735,9 +764,19 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
             if (gSignals[lSignalID].Level == 1) {
                 switch(this.Inputs[i]) {
                     case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    case 'WD' : gBusses['DB'].Value = this.Value;                       break;
+                    case 'SH' : this.SetFlags('N.....CZ', gUnits['SH'].Flags());        break;
+                    case 'AL' : this.SetFlags('NV....CZ', gUnits['AL'].Flags());        break;
+                    case 'NZ' : this.SetFlags('N......Z', gUnits['AL'].Flags());        break;
+                    case 'DB' : this.SetFlags('N......Z',gBusses['DB'].Flags());        break;
+                    case 'CY' : this.SetFlags('......C.', (gUnits['IR'].Bit1() == '0') ? 0 : 2);    break;
                 }
             }
         }
+        gSignals['FL.N'].Level = ((this.Value & 128) == 0) ? 0 : 1;
+        gSignals['FL.V'].Level = ((this.Value &  64) == 0) ? 0 : 1;
+        gSignals['FL.C'].Level = ((this.Value &   2) == 0) ? 0 : 1;
+        gSignals['FL.Z'].Level = ((this.Value &   1) == 0) ? 0 : 1;
     }
 }
 {// class cOA
@@ -811,11 +850,24 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
 }
 {// class cAL
     function cAL() {
+        var Nflag;
+        var Cflag;
+        var Vflag;
+        var Zflag;
         cUnit.call(this,'AL',384,320+40,['+','AND','OR','XOR','WU']); //  OC.RD = Set Carry for ALU computation
         this.Value = 0;
         gUnits['AL'] = this;
     }
     cAL.prototype = Object.create(cUnit.prototype);
+    cAL.prototype.Flags = function() {
+        var lFlags = 0;
+        this.Nflag = (this.Value > 127) ? true : false;
+        this.Zflag = (this.Value == 0);
+        if ( this.Nflag) lFlags |= 128;
+        if ( this.Cflag) lFlags |=   2;
+        if (!this.Zflag) lFlags |=   1;
+        return lFlags;
+    }
     cAL.prototype.Tick = function() {
         var lSignalID;
         var lIR = gUnits['IR'].Opcode();
@@ -834,10 +886,16 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
         var lOA = gUnits['OA'].Value;
         var lOB = gUnits['OB'].Value;
         var lOC = gUnits['OC'].Value;
-        if (!FlagLogical) this.Value = lOA + lOB + lOC;
-        if (FlagAnd     ) this.Value = lOA & lOB;
-        if (FlagOr      ) this.Value = lOA | lOB;
-        if (FlagXor     ) this.Value = lOA ^ lOB;
+        if (!FlagLogical) {
+            this.Value = lOA + lOB + lOC;
+            this.Cflag = false;
+            if (this.Value  > 255) {
+                this.Value -= 256;
+                this.Cflag  = true;
+        }   }
+        if (FlagAnd) this.Value = lOA & lOB;
+        if (FlagOr ) this.Value = lOA | lOB;
+        if (FlagXor) this.Value = lOA ^ lOB;
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignalID = SignalID('AL',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
@@ -850,19 +908,34 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
 }
 {// class cSH
     function cSH() {
+        var Value;
+        var Nflag;
+        var Cflag;
+        var Zflag;
         cUnit.call(this,'SH',384,320+40+24+40,['<','>','WU']);
         gUnits['SH'] = this;
     }
     cSH.prototype = Object.create(cUnit.prototype);
+    cSH.prototype.Flags = function() {
+        var lFlags = 0;
+        this.Nflag = (this.Value > 127) ? true : false;
+        this.Zflag = (this.Value == 0);
+        if ( this.Nflag) lFlags |= 128;
+        if ( this.Cflag) lFlags |=   2;
+        if (!this.Zflag) lFlags |=   1;
+        return lFlags;
+    }
     cSH.prototype.Tick = function() {
         var lSignalID;
-        var lIR = gUnits['IR'].Opcode();
-        var li1 = lIR.substr(7-1,1) == '1';
-        var FlagShiftRight = li1;
+        // var lIR = gUnits['IR'].Opcode();
+        // var li1 = lIR.substr(7-1,1) == '1';
+        // var FlagShiftRight = li1;
+        var FlagShiftRight = (gUnits['IR'].Bit1() == '1');
         gSignals['SH.<'].Level = (FlagShiftRight) ? 0 : 1;
         gSignals['SH.>'].Level = (FlagShiftRight) ? 1 : 0;
         var lOA = gUnits['OA'].Value;
         var lOC = gUnits['OC'].Value;
+        this.Cflag = (FlagShiftRight) ? lOA % 1 == 1 : lOA > 127;
         this.Value = (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : lOA << 1 + lOC;
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignalID = SignalID('SH',this.Inputs[i]);
@@ -884,6 +957,8 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
         this.Values[255] = parseInt('10000000',2); // Reset vector naar $80
         this.Values[10]  = parseInt('01001110',2); // Startwaarde van te verhogen waarde
         var lPC = parseInt('10000000',2);
+        this.Values[lPC++] = parseInt('00110000',2); // CLC    instructie
+        this.Values[lPC++] = parseInt('00110010',2); // SEC    instructie
         this.Values[lPC++] = parseInt('00010101',2); // TAS    instructie
         this.Values[lPC++] = parseInt('11010000',2); // LDA nn instructie
         this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
