@@ -539,7 +539,10 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     cIC.prototype.CycleNext = function() {
         cPLA.SetIndex = 0;
-        cIC.Cycle++; if (cIC.Cycle > 7) cIC.Cycle = 0;
+        cIC.Cycle++;
+        if (cIC.Cycle > 7) cIC.Cycle = 0;
+        if (cIC.Cycle > 1)
+            if (cIC.Cycle - 2 >  gInstructions[gUnits['IR'].Value].SignalSetIDs.length) cIC.Cycle = 0;
         switch (cIC.Cycle) {
             case 0: cPLA.SetName = 'IR=(PC)';                         break;
             case 1: cPLA.SetName = 'PC++';                            break;
@@ -557,8 +560,11 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
                 document.getElementById("PLA-signal-pair").innerHTML = '';
             }
             var lPairName = gSignalSets[cPLA.SetName].SignalPairs[cPLA.SetIndex];
-            document.getElementById("PLA-signal-pair").innerHTML += '<br />' + lPairName;
-            document.getElementById("PLA-signal-pair").innerHTML += ': ' + gSignalPairs[lPairName].FromName + ' ' + gSignalPairs[lPairName].ToName;
+            var lPair = gSignalPairs[lPairName];
+            var lElement = document.getElementById("PLA-signal-pair");
+            lElement.innerHTML += '<br />' + lPairName;
+            lElement.innerHTML += ': ' + lPair.FromName
+            if (!(lPair.ToName == undefined)) lElement.innerHTML += ' ' + gSignalPairs[lPairName].ToName;
         }
     }
     cIC.prototype.SignalRun = function() {
@@ -1072,7 +1078,7 @@ function NextSignals() {
     }
 }
 function ProcessSignals() {
-    gUnits['IC'].CycleNext();
+    // gUnits['IC'].CycleNext();
     if (gSignalIDs != undefined) {
         gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 1 });
         gSignalIDs.forEach(function(ID) {
