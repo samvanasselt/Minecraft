@@ -542,7 +542,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         cIC.Cycle++;
         if (cIC.Cycle > 7) cIC.Cycle = 0;
         if (cIC.Cycle > 1)
-            if (cIC.Cycle - 2 >  gInstructions[gUnits['IR'].Value].SignalSetIDs.length) cIC.Cycle = 0;
+            if (cIC.Cycle >= 2 + gInstructions[gUnits['IR'].Value].SignalSetIDs.length) cIC.Cycle = 0;
         switch (cIC.Cycle) {
             case 0: cPLA.SetName = 'IR=(PC)';                         break;
             case 1: cPLA.SetName = 'PC++';                            break;
