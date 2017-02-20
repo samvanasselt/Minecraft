@@ -88,14 +88,23 @@ function InitSignalPairs() {
     new cSignalPair('FL=NZ'        ,'FL.NZ');   //  Load N     Z flags from ALU
     new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
     new cSignalPair('CY=i1'        ,'FL.CY');   //  Read Carry from instruction bit 1
+    new cSignalPair('IC.RS'        ,'IC.RS');   //  Reset instruction clock
+    new cSignalPair('IC.CR'        ,'IC.CR');   //  Conditional reset instruction clock
 }
 {// class gCycleSignalSet
     function cSignalSet(pSetName, pSignalPairs) {
         var SetName;
-        var SignalPairs;
+        var SignalPairIDs;
         this.SetName = pSetName;
-        this.SignalPairs = (pSignalPairs == undefined) ? [] : pSignalPairs.split(",");
+        this.SignalPairIDs = (pSignalPairs == undefined) ? [] : pSignalPairs.split(",");
         gSignalSets[this.SetName] = this;
+    }
+    cSignalSet.prototype.SignalPairs = function() {
+        var lPairs = [];
+        for (var i = 0; i < this.SignalPairIDs.length; i++) {
+            lPairs.push(gSignalPairs[this.SignalPairIDs[i]]);
+        }
+        return lPairs;
     }
 }
 function InitCycles() {
@@ -106,12 +115,14 @@ function InitCycles() {
     new cSignalSet('PC=AL'    ,'PC=AL'                      );  //  Jump to location calculated by ALU for branch
     new cSignalSet('PC=(SP)'  ,'AD=SP,PC=MM'                );  //  Read program counter from memory location SP
     new cSignalSet('AD=ML'    ,'AD=ML'                      );  //  Prepare save to memory location ML
+    new cSignalSet('AD=SP'    ,'AD=SP'                      );  //  Prepare save to memory location SP
     new cSignalSet('ML=(PC)'  ,'AD=PC,ML=MM'                );  //  Read memory latch from memory location PC
     new cSignalSet('AL=AC±1'  ,'OA=AC,OB,OC'                );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
     new cSignalSet('LDA #'    ,      'AC=ML,FL=DB,PC++'     );  //  Load accumulator from memory latch and set N- and Z-flag, PC++
     new cSignalSet('LDA nn'   ,'AD=ML,AC=MM,FL=DB,PC++'     );  //  Load accumulator from memory location ML and set N,Z-flags, PC++
     new cSignalSet('AC=AL'    ,'AC=AL,FL=AL'                );  //  Store calculation result in accumulator and set V,N,C,Z-flags
     new cSignalSet('AC=SH'    ,'AC=SH,FL=SH'                );  //  Store shift result in accumulator and set N,C,Z-flags
+    new cSignalSet('FL=(SP)'  ,'AD=SP,FL=MM'                );  //  Load flags from stack (memory address SP)
     new cSignalSet('FL=A±ML'  ,      'OB=ML,OC,FL=AL'       );  //  Compare ML with accumulator
     new cSignalSet('FL=A±(ML)','AD=ML,OB=MM,OC,FL=AL'       );  //  Compare (ML) with accumulator
     new cSignalSet('AC=A±ML'  ,      'OB=ML,OC,AC=AL,FL=AL' );  //  Add ML to or Subtract ML from accumulator
@@ -124,11 +135,13 @@ function InitCycles() {
     new cSignalSet('(AD)=FL'  ,'MM=FL'                      );  //  Store flags in memory location AD (PHP)
     new cSignalSet('(AD)=PC'  ,'MM=PC'                      );  //  Store PC in memory location AD (JSR)
     new cSignalSet('AL=SP±1'  ,'OA=SP,OB,OC'                );  //  Calculate stack pointer ± 1
-    new cSignalSet('AL=AC'    ,'OA=AC,OC'                   );  //  Calculate A + C from instruction
+    new cSignalSet('A=AC'     ,'OA=AC,OC'                   );  //  Calculate AC + C from instruction
+    new cSignalSet('A=PC'     ,'OA=AC,OC'                   );  //  Calculate PC + C from instruction
+    new cSignalSet('SH=C<AC>C','OA=AC,OC'                   );  //  Shift accumulator from instruction
     new cSignalSet('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
     new cSignalSet('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
     new cSignalSet('SP=AC'    ,'SP=AC,FL=DB'                );  //  Load stack pointer from accumulator
-    new cSignalSet('BRA-3'    ,'AD=PC,OB=ML,OC,PC++'        );  //  B=ML, PC++
+    new cSignalSet('BRA-3'    ,'AD=PC,OB=ML,OC,PC++,IC.CR'  );  //  B=ML, PC++
     new cSignalSet('JSR-3'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
     new cSignalSet('NOP'      ,undefined                    );  //  No operation
 }
@@ -139,15 +152,35 @@ function InitCycles() {
         var Operation;
         var Mnemonic;
         var SignalSets;
+        var SignalPairs;
         var Value;
         var lOpcode = pOpcode.split(",");
         this.AddressMode  = lOpcode[0];
         this.CT           = lOpcode[1];
         this.Operation    = lOpcode[2];
         this.Mnemonic     = pMnemonic;
-        this.SignalSetIDs = pSignalSets.split(",");
+        if (pSignalSets == '') { this.SignalSetIDs = [];                     }
+        else                   { this.SignalSetIDs = pSignalSets.split(","); }
+        this.InitSignalPairs();
         this.Value = parseInt(lOpcode.join(''),2);
         gInstructions[this.Value] = this;
+    }
+    cInstruction.prototype.InitSignalPairs = function() {
+        var iCycle = 0;
+        this.SignalPairs  = [];
+        this.SignalPairs.push(gSignalSets['IR=(PC)'].SignalPairs()); iCycle++;
+        this.SignalPairs.push(gSignalSets['PC++'   ].SignalPairs()); iCycle++;
+        for (var i = 0; i < this.SignalSetIDs.length; i++) {
+            try {
+                this.SignalPairs.push(gSignalSets[this.SignalSetIDs[i]].SignalPairs());
+            }
+            catch(err) {
+                console.log('SignalSet ID[\'' + this.SignalSetIDs[i] + '\'] not found. ');
+            }
+            if (i == this.SignalSetIDs.length - 1)
+                this.SignalPairs[iCycle].push(gSignalPairs['IC.RS']);
+            iCycle++;
+        }
     }
     cInstruction.prototype.SetName = function(pCycle) {
         if (pCycle - 2 < this.SignalSetIDs.length) {
@@ -169,10 +202,10 @@ function InitInstructions() {
     if (gSignalSets.length == 0) InitCycles();
     new cInstruction('00,00,0001','INA'   ,'AL=AC±1,AC=AL');
     new cInstruction('00,00,0011','DEA'   ,'AL=AC±1,AC=AL');
-    new cInstruction('00,00,0100','ROL'   ,'SH=AC<CY,AC=SH');
-    new cInstruction('00,00,0101','ASL'   ,'SH=AC<0,AC=SH');
-    new cInstruction('00,00,0100','ROR'   ,'SH=CY>AC,AC=SH');
-    new cInstruction('00,00,0100','LSR'   ,'SH=0>AC,AC=SH');
+    new cInstruction('00,00,0100','ROL'   ,'SH=C<AC>C,AC=SH');      //  SH =    AC<CY
+    new cInstruction('00,00,0101','ASL'   ,'SH=C<AC>C,AC=SH');        //  SH =    AC<0
+    new cInstruction('00,00,0100','ROR'   ,'SH=C<AC>C,AC=SH');       //  SH = CY>AC
+    new cInstruction('00,00,0100','LSR'   ,'SH=C<AC>C,AC=SH');        //  SH =  0>AC
     new cInstruction('00,01,0001','PLA'   ,'AC=(SP),AL=SP±1,SP=AL');
     new cInstruction('00,01,0011','PHA'   ,'AL=SP±1,SP=AL,AD=SP,(AD)=AC');
     new cInstruction('00,01,0100','TSA'   ,'AC=SP');
@@ -504,7 +537,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
 {// class cIC
     function cIC() {
         var RunState = false;
-        cUnit.call(this,'IC',20,200,['p0','p1'],['t0','t1','t2','t3','t4','t5','t6','t7']);
+        cUnit.call(this,'IC',20,200,['p0','p1','RS','CR'],['t0','t1','t2','t3','t4','t5','t6','t7']);
         gUnits['IC'] = this;
     }
     cIC.prototype = Object.create(cUnit.prototype);
@@ -512,6 +545,24 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         this.RunState = false;
         cIC.Cycle = pCycle;
         cPLA.SetName = 'IR=(PC)';
+    }
+    cIC.prototype.ConditionalResetIC = function() {
+        var lIR = gUnits['IR'];
+        var lFL = gUnits['FL'];
+        var lIns   = gInstructions[lIR.Value];
+        var lBranch;
+        switch (lIns.Mnemonic) {
+            case 'BEQ' : lBranch = !lFL.Flag('Z'); break;
+            case 'BNE' : lBranch =  lFL.Flag('Z'); break;
+            case 'BCC' : lBranch = !lFL.Flag('C'); break;
+            case 'BCS' : lBranch =  lFL.Flag('C'); break;
+            case 'BVC' : lBranch = !lFL.Flag('V'); break;
+            case 'BVS' : lBranch =  lFL.Flag('V'); break;
+            case 'BPL' : lBranch = !lFL.Flag('N'); break;
+            case 'BMI' : lBranch =  lFL.Flag('N'); break;
+            default: alert('Unexpected conditional reset found for instruction ' + lIns.Mnemonic); break;
+        }
+        if (!lBranch) this.ResetIC();   //  If branch is not taken, get next instruction
     }
     cIC.prototype.ToggleRunState = function() {
         if (this.RunState) {
@@ -525,8 +576,8 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     cIC.prototype.CycleShow = function() {
         // var lSignalText = '<br />T' + cIC.Cycle + ': ' + cPLA.SetName + '<br />...';
-        // for (var i = 0; i < gSignalSets[cPLA.SetName].SignalPairs.length; i++)
-            // lSignalText += ' ' + gSignalSets[cPLA.SetName].SignalPairs[i];
+        // for (var i = 0; i < gSignalSets[cPLA.SetName].SignalPairIDs.length; i++)
+            // lSignalText += ' ' + gSignalSets[cPLA.SetName].SignalPairIDs[i];
         // document.getElementById("PLA-signals").innerHTML += lSignalText;
         if (cIC.Cycle == 0) {
             // document.getElementById("instruction").innerHTML = '---';
@@ -555,11 +606,11 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         }
     }
     cIC.prototype.SignalShow = function() {
-        if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairs.length) {
+        if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
             if (cPLA.SetIndex == 0) {
                 document.getElementById("PLA-signal-pair").innerHTML = '';
             }
-            var lPairName = gSignalSets[cPLA.SetName].SignalPairs[cPLA.SetIndex];
+            var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
             var lPair = gSignalPairs[lPairName];
             var lElement = document.getElementById("PLA-signal-pair");
             lElement.innerHTML += '<br />' + lPairName;
@@ -568,8 +619,8 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         }
     }
     cIC.prototype.SignalRun = function() {
-        if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairs.length) {
-            var lPairName = gSignalSets[cPLA.SetName].SignalPairs[cPLA.SetIndex];
+        if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
+            var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
             var lSignalPair = gSignalPairs[lPairName];
             lSignalPair.SetLevel(1);
             lSignalPair.Tick();
@@ -583,7 +634,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     cIC.prototype.SignalNext = function() {
         cPLA.SetIndex++;
-        if (cPLA.SetIndex >= gSignalSets[cPLA.SetName].SignalPairs.length) {
+        if (cPLA.SetIndex >= gSignalSets[cPLA.SetName].SignalPairIDs.length) {
             this.CycleNext();
             this.CycleShow();
         }
@@ -591,6 +642,21 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     cIC.prototype.NextState = function() {
         if (this.RunState) this.SignalRun(); else this.SignalNext();
+    }
+    // ,'RS','CR'
+    cIC.prototype.Tick = function() {
+        var lSignalID;
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignalID = SignalID('IC',this.Inputs[i]);
+            if (gSignals[lSignalID].Level == 1) {
+                switch(this.Inputs[i]) {
+                    // case 'p0' : break;
+                    // case 'p1' : break;
+                    case 'RS' : this.ResetIC(); break;
+                    case 'CR' : this.ConditionalResetIC(); break;
+                }
+            }
+        }
     }
 }
 function NextPair()    { gUnits['IC'].SignalNext(); gUnits['IC'].SignalShow(); }
@@ -760,6 +826,7 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
         if (pFlags.search('Z') >= 0) lMask |= parseInt('00000001',2);
         return (pInvert) ? 255 - lMask : lMask;
     }
+    cFL.prototype.Flag = function(pFlag) { return (this.Mask(pFlag,false) & this.Value) > 0;  }
     cFL.prototype.SetFlags = function(pFlags, pValue) {
         this.Value = (this.Mask(pFlags,false) & pValue) | ( this.Mask(pFlags,true) & this.Value);
     }
