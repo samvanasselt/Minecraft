@@ -541,10 +541,15 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         gUnits['IC'] = this;
     }
     cIC.prototype = Object.create(cUnit.prototype);
+    cIC.prototype.SetValue = function() {
+        this.Value = 16 * cIC.Cycle + cPLA.SetIndex;
+    }
     cIC.prototype.ResetIC = function(pCycle = 7) {
         this.RunState = false;
+        this.RunStateButtons();
         cIC.Cycle = pCycle;
         cPLA.SetName = 'IR=(PC)';
+        cPLA.SignalPairs = gSignalSets[cPLA.SetName].SignalPairs();
     }
     cIC.prototype.ConditionalResetIC = function() {
         var lIR = gUnits['IR'];
@@ -564,15 +569,18 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         }
         if (!lBranch) this.ResetIC();   //  If branch is not taken, get next instruction
     }
-    cIC.prototype.ToggleRunState = function() {
+    cIC.prototype.RunStateButtons = function() {
         if (this.RunState) {
-            document.getElementById("button-next-pair").style.display = "inline";
-            document.getElementById("button-process-pair").style.visibility = "hidden";
-        } else {
             document.getElementById("button-next-pair").style.display = "none";
             document.getElementById("button-process-pair").style.visibility = "visible";
+        } else {
+            document.getElementById("button-next-pair").style.display = "inline";
+            document.getElementById("button-process-pair").style.visibility = "hidden";
         }
+    }
+    cIC.prototype.ToggleRunState = function() {
         this.RunState = !this.RunState;
+        this.RunStateButtons();
     }
     cIC.prototype.CycleShow = function() {
         // var lSignalText = '<br />T' + cIC.Cycle + ': ' + cPLA.SetName + '<br />...';
@@ -604,37 +612,77 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             case 6: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
             case 7: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
         }
+        switch (cIC.Cycle) {
+            case 0: cPLA.SignalPairs = gSignalSets['IR=(PC)'].SignalPairs(); break;
+            case 1: cPLA.SignalPairs = gSignalSets['PC++'   ].SignalPairs(); break;
+            default:cPLA.SignalPairs = gUnits['IR'].SignalPairs(cIC.Cycle);  break;
+        }
     }
+    // cIC.prototype.SignalShow = function() {
+        // if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
+            // if (cPLA.SetIndex == 0) {
+                // document.getElementById("PLA-signal-pair").innerHTML = '';
+            // }
+            // var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
+            // var lPair = gSignalPairs[lPairName];
+            // var lElement = document.getElementById("PLA-signal-pair");
+            // lElement.innerHTML += '<br />' + lPairName;
+            // lElement.innerHTML += ': ' + lPair.FromName
+            // if (!(lPair.ToName == undefined)) lElement.innerHTML += ' ' + gSignalPairs[lPairName].ToName;
+        // }
+    // }
     cIC.prototype.SignalShow = function() {
-        if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
+        if (cPLA.SetIndex < cPLA.SignalPairs.length) {
             if (cPLA.SetIndex == 0) {
                 document.getElementById("PLA-signal-pair").innerHTML = '';
             }
-            var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
-            var lPair = gSignalPairs[lPairName];
+            var lPair = cPLA.SignalPairs[cPLA.SetIndex];
             var lElement = document.getElementById("PLA-signal-pair");
-            lElement.innerHTML += '<br />' + lPairName;
+            lElement.innerHTML += '<br />' + lPair.PairName;
             lElement.innerHTML += ': ' + lPair.FromName
-            if (!(lPair.ToName == undefined)) lElement.innerHTML += ' ' + gSignalPairs[lPairName].ToName;
+            if (!(lPair.ToName == undefined)) lElement.innerHTML += ' ' + lPair.ToName;
         }
+        this.SetValue();
     }
+    // cIC.prototype.SignalRun = function() {
+        // if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
+            // var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
+            // var lSignalPair = gSignalPairs[lPairName];
+            // lSignalPair.SetLevel(1);
+            // lSignalPair.Tick();
+            // gUnits['AL'].Tick();
+            // gUnits['SH'].Tick();
+            // Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
+            // Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
+            // lSignalPair.SetLevel(0);
+        // }
+        // this.ToggleRunState();
+    // }
     cIC.prototype.SignalRun = function() {
-        if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
-            var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
-            var lSignalPair = gSignalPairs[lPairName];
-            lSignalPair.SetLevel(1);
-            lSignalPair.Tick();
+        if (cPLA.SetIndex < cPLA.SignalPairs.length) {
+            var lPair = cPLA.SignalPairs[cPLA.SetIndex];
+            lPair.SetLevel(1);
+            lPair.Tick();
             gUnits['AL'].Tick();
             gUnits['SH'].Tick();
             Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
             Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
-            lSignalPair.SetLevel(0);
+            lPair.SetLevel(0);
         }
         this.ToggleRunState();
+        this.SetValue();
     }
+    // cIC.prototype.SignalNext = function() {
+        // cPLA.SetIndex++;
+        // if (cPLA.SetIndex >= gSignalSets[cPLA.SetName].SignalPairIDs.length) {
+            // this.CycleNext();
+            // this.CycleShow();
+        // }
+        // this.ToggleRunState();
+    // }
     cIC.prototype.SignalNext = function() {
         cPLA.SetIndex++;
-        if (cPLA.SetIndex >= gSignalSets[cPLA.SetName].SignalPairIDs.length) {
+        if (cPLA.SetIndex >= cPLA.SignalPairs.length) {
             this.CycleNext();
             this.CycleShow();
         }
@@ -642,6 +690,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     cIC.prototype.NextState = function() {
         if (this.RunState) this.SignalRun(); else this.SignalNext();
+        this.SetValue();
     }
     // ,'RS','CR'
     cIC.prototype.Tick = function() {
@@ -720,6 +769,9 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
     }
     cIR.prototype.SignalSet = function(pCycle) {
         return gInstructions[this.Value].SignalSet(pCycle);
+    }
+    cIR.prototype.SignalPairs = function(pCycle) {
+        return gInstructions[this.Value].SignalPairs[pCycle];
     }
     cIR.prototype.Tick = function() {
         var lSignalID;
