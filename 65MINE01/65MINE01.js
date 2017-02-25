@@ -136,7 +136,7 @@ function InitCycles() {
     new cSignalSet('(AD)=PC'  ,'MM=PC'                      );  //  Store PC in memory location AD (JSR)
     new cSignalSet('AL=SP±1'  ,'OA=SP,OB,OC'                );  //  Calculate stack pointer ± 1
     new cSignalSet('A=AC'     ,'OA=AC,OC'                   );  //  Calculate AC + C from instruction
-    new cSignalSet('A=PC'     ,'OA=AC,OC'                   );  //  Calculate PC + C from instruction
+    new cSignalSet('A=PC'     ,'OA=PC,OC'                   );  //  Calculate PC + C from instruction
     new cSignalSet('SH=C<AC>C','OA=AC,OC'                   );  //  Shift accumulator from instruction
     new cSignalSet('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
     new cSignalSet('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
@@ -485,9 +485,10 @@ function Init65MINE01() {
         var Zflag;
         this.Naam    = pNaam;
         this.Value   = Math.floor(Math.random() * 256);
+        this.UnitBox = new cUnitBox(this.Naam);
         this.BusBox = new cBusBox(this.Naam);
     }
-    cBus.prototype.Draw = function() { this.BusBox.DrawBox(this.Value); }
+    cBus.prototype.Draw = function() { this.BusBox.DrawBox(this.Value); this.UnitBox.DrawBox(this.Value); }
     cBus.prototype.Flags = function() {
         var lFlags = 0;
         this.Nflag = (this.Value > 127) ? true : false;
@@ -557,14 +558,14 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         var lIns   = gInstructions[lIR.Value];
         var lBranch;
         switch (lIns.Mnemonic) {
-            case 'BEQ' : lBranch = !lFL.Flag('Z'); break;
-            case 'BNE' : lBranch =  lFL.Flag('Z'); break;
-            case 'BCC' : lBranch = !lFL.Flag('C'); break;
-            case 'BCS' : lBranch =  lFL.Flag('C'); break;
-            case 'BVC' : lBranch = !lFL.Flag('V'); break;
-            case 'BVS' : lBranch =  lFL.Flag('V'); break;
-            case 'BPL' : lBranch = !lFL.Flag('N'); break;
-            case 'BMI' : lBranch =  lFL.Flag('N'); break;
+            case 'BEQ nn' : lBranch = !lFL.Flag('Z'); break;
+            case 'BNE nn' : lBranch =  lFL.Flag('Z'); break;
+            case 'BCC nn' : lBranch = !lFL.Flag('C'); break;
+            case 'BCS nn' : lBranch =  lFL.Flag('C'); break;
+            case 'BVC nn' : lBranch = !lFL.Flag('V'); break;
+            case 'BVS nn' : lBranch =  lFL.Flag('V'); break;
+            case 'BPL nn' : lBranch = !lFL.Flag('N'); break;
+            case 'BMI nn' : lBranch =  lFL.Flag('N'); break;
             default: alert('Unexpected conditional reset found for instruction ' + lIns.Mnemonic); break;
         }
         if (!lBranch) this.ResetIC();   //  If branch is not taken, get next instruction
@@ -578,10 +579,12 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             document.getElementById("button-process-pair").style.visibility = "hidden";
         }
     }
-    cIC.prototype.ToggleRunState = function() {
-        this.RunState = !this.RunState;
-        this.RunStateButtons();
-    }
+    cIC.prototype.ClearRunState = function() { this.RunState = false; this.RunStateButtons(); }
+    cIC.prototype.SetRunState   = function() { this.RunState = true;  this.RunStateButtons(); }
+    // cIC.prototype.ToggleRunState = function() {
+        // this.RunState = !this.RunState;
+        // this.RunStateButtons();
+    // }
     cIC.prototype.CycleShow = function() {
         // var lSignalText = '<br />T' + cIC.Cycle + ': ' + cPLA.SetName + '<br />...';
         // for (var i = 0; i < gSignalSets[cPLA.SetName].SignalPairIDs.length; i++)
@@ -637,6 +640,9 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
                 document.getElementById("PLA-signal-pair").innerHTML = '';
             }
             var lPair = cPLA.SignalPairs[cPLA.SetIndex];
+            lPair.SetLevel(1);
+            Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
+            Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
             var lElement = document.getElementById("PLA-signal-pair");
             lElement.innerHTML += '<br />' + lPair.PairName;
             lElement.innerHTML += ': ' + lPair.FromName
@@ -644,20 +650,6 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         }
         this.SetValue();
     }
-    // cIC.prototype.SignalRun = function() {
-        // if (cPLA.SetIndex < gSignalSets[cPLA.SetName].SignalPairIDs.length) {
-            // var lPairName = gSignalSets[cPLA.SetName].SignalPairIDs[cPLA.SetIndex];
-            // var lSignalPair = gSignalPairs[lPairName];
-            // lSignalPair.SetLevel(1);
-            // lSignalPair.Tick();
-            // gUnits['AL'].Tick();
-            // gUnits['SH'].Tick();
-            // Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
-            // Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
-            // lSignalPair.SetLevel(0);
-        // }
-        // this.ToggleRunState();
-    // }
     cIC.prototype.SignalRun = function() {
         if (cPLA.SetIndex < cPLA.SignalPairs.length) {
             var lPair = cPLA.SignalPairs[cPLA.SetIndex];
@@ -669,30 +661,21 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
             lPair.SetLevel(0);
         }
-        this.ToggleRunState();
+        this.ClearRunState();
         this.SetValue();
     }
-    // cIC.prototype.SignalNext = function() {
-        // cPLA.SetIndex++;
-        // if (cPLA.SetIndex >= gSignalSets[cPLA.SetName].SignalPairIDs.length) {
-            // this.CycleNext();
-            // this.CycleShow();
-        // }
-        // this.ToggleRunState();
-    // }
     cIC.prototype.SignalNext = function() {
         cPLA.SetIndex++;
         if (cPLA.SetIndex >= cPLA.SignalPairs.length) {
             this.CycleNext();
             this.CycleShow();
         }
-        this.ToggleRunState();
+        this.SetRunState();
     }
     cIC.prototype.NextState = function() {
         if (this.RunState) this.SignalRun(); else this.SignalNext();
         this.SetValue();
     }
-    // ,'RS','CR'
     cIC.prototype.Tick = function() {
         var lSignalID;
         for (var i = 0; i < this.Inputs.length; i++) {
@@ -1082,14 +1065,14 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
         this.Values[255] = parseInt('10000000',2); // Reset vector naar $80
         this.Values[10]  = parseInt('01001110',2); // Startwaarde van te verhogen waarde
         var lPC = parseInt('10000000',2);
-        this.Values[lPC++] = parseInt('00110000',2); // CLC    instructie
-        this.Values[lPC++] = parseInt('00110010',2); // SEC    instructie
         this.Values[lPC++] = parseInt('00010101',2); // TAS    instructie
         this.Values[lPC++] = parseInt('11010000',2); // LDA nn instructie
         this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
         this.Values[lPC++] = parseInt('00000001',2); // INA    instructie
         this.Values[lPC++] = parseInt('11010001',2); // STA nn instructie
         this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
+        this.Values[lPC++] = parseInt('11101011',2); // BNE nn instructie
+        this.Values[lPC++] = parseInt('11111000',2); //     nn = $F8
         this.Values[lPC++] = parseInt('00010100',2); // TSA    instructie
         this.Values[lPC++] = parseInt('11110000',2); // JMP nn instructie
         this.Values[lPC++] = parseInt('10000000',2); //     nn = $80
@@ -1100,6 +1083,11 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
     cMM.prototype.Draw = function() {
         this.Value = this.GetValue();
         cUnit.prototype.Draw.call(this);
+        var lID = '';
+        for (var i = 0; i < this.Values.length; i++) {
+            lID = 'mm' + toHex(i);
+            document.getElementById(lID).innerHTML = toHex(this.Values[i]);
+        }
     }
     cMM.prototype.Tick = function() {
         var lSignalID;
