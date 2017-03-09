@@ -276,9 +276,9 @@ function Init65MINE01() {
     new cAC();
     new cAD();
     //
-    gBusses['DB'] = new cBus('DB'); gBusses['DB'].BusBox.SetXYh(160, 24, 560);
-    gBusses['UB'] = new cBus('UB'); gBusses['UB'].BusBox.SetXYh(520,110, 560-110+24);
-    gBusses['AB'] = new cBus('AB'); gBusses['AB'].BusBox.SetXYh(620, 24, 260);
+    gBusses['DB'] = new cBus('DB', 160-14, 24, 560); gBusses['DB'].BusBox.SetXYh(160, 24+40, 560-40);
+    gBusses['UB'] = new cBus('UB', 520-14,110, 474); gBusses['UB'].BusBox.SetXYh(520,110+40, 560-110+24-40);
+    gBusses['AB'] = new cBus('AB', 620-14, 24, 260); gBusses['AB'].BusBox.SetXYh(620, 24+40, 260-40);
     //
     Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
@@ -311,9 +311,12 @@ function Init65MINE01() {
         gCanvas.beginPath();
         gCanvas.rect(x, y, w, 3);
         gCanvas.stroke();
-        if (gSignals[pSignalID].Level == 1) lBusBox.DrawActiveBus();
+        if (gSignals[pSignalID].Level == 1) {
+            lBusBox.DrawActiveBus();
+        }
     }
-    cUnitBox.prototype.DrawBox = function(pValue) { // = undefined) {
+    // cUnitBox.prototype.DrawBox = function(pValue = undefined) {
+    cUnitBox.prototype.DrawBox = function(pValue, pActive) {
         // Zie http://www.w3schools.com/colors/colors_converter.asp
         // Rood  =   0
         // Geel  =  60
@@ -322,10 +325,20 @@ function Init65MINE01() {
         // Blauw = 240
         gCanvas.fillStyle = 'hsl(120, 100%, 95%)';
         gCanvas.fillRect(this.x, this.y, this.w, this.h);
-        gCanvas.strokeStyle = 'hsl(0, 0%, 25%)'; // Rood, Geen kleur, Kwart licht.
-        gCanvas.beginPath();
-        gCanvas.rect(this.x, this.y, this.w, this.h);
-        gCanvas.stroke();
+        if (pActive) {
+            gCanvas.strokeStyle = 'hsl(0, 100%, 75%)';
+            gCanvas.lineWidth   = 3;
+            gCanvas.beginPath();
+            gCanvas.rect(this.x+1, this.y+1, this.w-2, this.h-2);
+            gCanvas.stroke();
+        } else {
+            gCanvas.strokeStyle = 'hsl(0, 0%, 25%)';
+            gCanvas.lineWidth   = 1;
+            gCanvas.beginPath();
+            gCanvas.rect(this.x, this.y, this.w, this.h);
+            gCanvas.stroke();
+        }
+        gCanvas.lineWidth = 1;
         var lValue = (pValue == undefined) ? this.value : pValue;
         this.value = lValue;
         for (var i = 0; i < 8; i++) {
@@ -361,6 +374,21 @@ function Init65MINE01() {
         this.Outputs = (pOutputs == undefined) ? [] : pOutputs;
         for (var i = 0; i < this.Inputs.length ; i++) { new cSignal(this.Naam, this.Inputs[i] ); }
         for (var i = 0; i < this.Outputs.length; i++) { new cSignal(this.Naam, this.Outputs[i]); }
+    }
+    cUnit.prototype.IsActive = function() {
+        var lSignalID;
+        var lIsActive = false;
+        switch (this.Naam) {
+            case 'AL': lIsActive = false; break;
+            case 'SH': lIsActive = false; break;
+            case 'FL': lIsActive = false; break;
+            default  : for (var i = 0; i < this.Inputs.length; i++) {
+                            lSignalID = SignalID(this.Naam, this.Inputs[i]);
+                            lIsActive |= (gSignals[lSignalID].Level == 1);
+                       }
+                       break;
+        }
+        return lIsActive;
     }
     cUnit.prototype.Draw = function() {
         var ni = 0;
@@ -429,7 +457,7 @@ function Init65MINE01() {
             gCanvas.rect(this.UnitBox.x, y, this.UnitBox.w, 10 * n + 4);
             gCanvas.stroke();
         }
-        this.UnitBox.DrawBox(this.Value);
+        this.UnitBox.DrawBox(this.Value, this.IsActive());
     }
 }
 {// class cBusBox
@@ -454,7 +482,7 @@ function Init65MINE01() {
     // cBusBox.prototype.DrawBox = function(pValue = undefined) {
     cBusBox.prototype.DrawBox = function(pValue) {
         gCanvas.clearRect(this.x, this.y, this.w, this.h);
-        gCanvas.fillStyle = 'hsl(240, 100%, 95%)';
+        gCanvas.fillStyle = 'hsl(240, 0%, 95%)';
         gCanvas.fillRect(this.x, this.y, this.w, this.h);
         gCanvas.strokeStyle = 'hsl(0, 0%, 25%)'; // Rood, Geen kleur, Kwart licht.
         gCanvas.beginPath();
@@ -464,20 +492,21 @@ function Init65MINE01() {
         this.value = lValue;
         for (var i = 0; i < 8; i++) {
             gCanvas.beginPath();
-            if (lValue % 2 == 1) gCanvas.fillStyle = 'hsl(120, 100%, 80%)';
-            else                 gCanvas.fillStyle = 'hsl(  0,   0%, 80%)';
+            if (lValue % 2 == 1) gCanvas.fillStyle = 'hsl(120, 50%, 70%)';
+            else                 gCanvas.fillStyle = 'hsl(  0,  0%, 80%)';
             lValue = Math.floor(lValue / 2);
-            gCanvas.fillRect(this.x + 63 - 8 * i, this.y + 28, 2, this.h - 32);
+            // gCanvas.fillRect(this.x + 63 - 8 * i, this.y + 28, 2, this.h - 32);
+            gCanvas.fillRect(this.x + 63 - 8 * i, this.y + 4, 3, this.h - 8);
             gCanvas.stroke();
             gCanvas.fillStyle = 'hsl(0,   0%, 25%)';
             gCanvas.font = "20px Verdana";
-            gCanvas.fillText(this.naam,  this.x + 3, this.y + 20);
-            gCanvas.fillText(toHex(this.value),this.x + 43, this.y + 20);
+            // gCanvas.fillText(this.naam,  this.x + 3, this.y + 20);
+            // gCanvas.fillText(toHex(this.value),this.x + 43, this.y + 20);
         }
     }
 }
 {// class cBus
-    function cBus(pNaam) {
+    function cBus(pNaam, pX, pY, pH) {
         var Naam;
         var Value;
         var BusBox;
@@ -487,6 +516,7 @@ function Init65MINE01() {
         this.Value   = Math.floor(Math.random() * 256);
         this.UnitBox = new cUnitBox(this.Naam);
         this.BusBox = new cBusBox(this.Naam);
+        this.UnitBox.SetXY(pX,pY);
     }
     cBus.prototype.Draw = function() { this.BusBox.DrawBox(this.Value); this.UnitBox.DrawBox(this.Value); }
     cBus.prototype.Flags = function() {
@@ -653,7 +683,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     cIC.prototype.SignalRun = function() {
         if (cPLA.SetIndex < cPLA.SignalPairs.length) {
             var lPair = cPLA.SignalPairs[cPLA.SetIndex];
-            lPair.SetLevel(1);
+            // lPair.SetLevel(1);
             lPair.Tick();
             gUnits['AL'].Tick();
             gUnits['SH'].Tick();
@@ -770,7 +800,7 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
 }
 {// class cSP
     function cSP() {
-        cUnit.call(this, 'SP',280,220,['RD','WD']);
+        cUnit.call(this, 'SP',280,220,['RD','WD','WA']);
         gUnits['SP'] = this;
     }
     cSP.prototype = Object.create(cUnit.prototype);
@@ -782,6 +812,7 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
                 switch(this.Inputs[i]) {
                     case 'RD' :                       this.Value = gBusses['DB'].Value; break;
                     case 'WD' : gBusses['DB'].Value = this.Value;                       break;
+                    case 'WA' : gBusses['AB'].Value = this.Value;                       break;
                 }
             }
         }
@@ -850,6 +881,7 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
     function cFL() {
         cUnit.call(this,'FL',20,480,['RD','WD','AL','NZ','SH','DB','CY'],['N','V','C','Z']);
         this.Value &= this.Mask('NV....CZ',false);
+        this.SetSignals();
         gUnits['FL'] = this;
     }
     cFL.prototype = Object.create(cUnit.prototype);
@@ -864,6 +896,12 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
     cFL.prototype.Flag = function(pFlag) { return (this.Mask(pFlag,false) & this.Value) > 0;  }
     cFL.prototype.SetFlags = function(pFlags, pValue) {
         this.Value = (this.Mask(pFlags,false) & pValue) | ( this.Mask(pFlags,true) & this.Value);
+    }
+    cFL.prototype.SetSignals = function() {
+        gSignals['FL.N'].Level = ((this.Value & 128) == 0) ? 0 : 1;
+        gSignals['FL.V'].Level = ((this.Value &  64) == 0) ? 0 : 1;
+        gSignals['FL.C'].Level = ((this.Value &   2) == 0) ? 0 : 1;
+        gSignals['FL.Z'].Level = ((this.Value &   1) == 0) ? 0 : 1;
     }
     cFL.prototype.Tick = function() {
         var lSignalID;
@@ -881,10 +919,7 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
                 }
             }
         }
-        gSignals['FL.N'].Level = ((this.Value & 128) == 0) ? 0 : 1;
-        gSignals['FL.V'].Level = ((this.Value &  64) == 0) ? 0 : 1;
-        gSignals['FL.C'].Level = ((this.Value &   2) == 0) ? 0 : 1;
-        gSignals['FL.Z'].Level = ((this.Value &   1) == 0) ? 0 : 1;
+        this.SetSignals();
     }
 }
 {// class cOA
