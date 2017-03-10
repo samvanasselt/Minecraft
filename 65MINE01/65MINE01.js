@@ -313,11 +313,19 @@ function Init65MINE01() {
         this.w = pW;
         this.h = pH;
     }
-    cBox.prototype.rect = function(pStyle) {
+    cBox.prototype.clearRect = function() { gCanvas.clearRect(this.x, this.y, this.w, this.h); }
+    cBox.prototype.fillRect = function(pStyle) {
+        if (!(pStyle == undefined)) gCanvas.fillStyle = pStyle;
+        gCanvas.fillRect(this.x, this.y, this.w, this.h);
+    }
+    cBox.prototype.rect = function(pStyle, pWidth) {
+        var dW = (pWidth == undefined) ? 0 : pWidth - 1;
         if (!(pStyle == undefined)) gCanvas.strokeStyle = pStyle;
+        gCanvas.lineWidth = 2*dW +  1;
         gCanvas.beginPath();
-        gCanvas.rect(this.x, this.y, this.w, this.h);
+        gCanvas.rect(this.x + dW, this.y + dW, this.w - 2*dW, this.h - 2*dW);
         gCanvas.stroke();
+        gCanvas.lineWidth = 1;
     }
 }
 {// class cUnitBox
@@ -413,7 +421,6 @@ function Init65MINE01() {
         switch (this.Naam) {
             case 'AL': lIsActive = false; break;
             case 'SH': lIsActive = false; break;
-            case 'FL': lIsActive = false; break;
             default  : for (var i = 0; i < this.Inputs.length; i++) {
                             lSignalID = SignalID(this.Naam, this.Inputs[i]);
                             lIsActive |= (gSignals[lSignalID].Level == 1);
@@ -495,15 +502,16 @@ function Init65MINE01() {
 }
 {// class cBusBox
     function cBusBox(pNaam) {
+        cBox.call(this,0,0,72,0);
         var naam;
         var value;
-        var x,y,w,h;
+        // var x,y,w,h;
         this.naam  = pNaam;
         this.value = Math.floor(Math.random() * 256);
-        this.x = 0;
-        this.y = 0;
-        this.w = 72;
-        this.h = 0;
+        // this.x = 0;
+        // this.y = 0;
+        // this.w = 72;
+        // this.h = 0;
     }
     cBusBox.prototype.SetXYh = function(pX,pY,pH) { this.x = pX; this.y = pY; this.h = pH;}
     cBusBox.prototype.DrawActiveBus = function() {
@@ -513,9 +521,11 @@ function Init65MINE01() {
         gCanvas.stroke();
     }
     cBusBox.prototype.DrawBox = function(pValue, pActive) {
-        gCanvas.clearRect(this.x, this.y, this.w, this.h);
-        gCanvas.fillStyle = 'hsl(240, 0%, 95%)';
-        gCanvas.fillRect(this.x, this.y, this.w, this.h);
+        cBox.prototype.clearRect.call(this);
+        cBox.prototype.fillRect.call(this, 'hsl(240, 0%, 95%)');
+        // gCanvas.clearRect(this.x, this.y, this.w, this.h);
+        // gCanvas.fillStyle = 'hsl(240, 0%, 95%)';
+        // gCanvas.fillRect(this.x, this.y, this.w, this.h);
         var lValue = (pValue == undefined) ? this.value : pValue;
         this.value = lValue;
         for (var i = 0; i < 8; i++) {
@@ -528,19 +538,9 @@ function Init65MINE01() {
             gCanvas.fillStyle = 'hsl(0,   0%, 25%)';
             gCanvas.font = "20px Verdana";
         }
-        if (pActive) {
-            gCanvas.strokeStyle = 'hsl(0, 100%, 75%)';
-            gCanvas.lineWidth   = 3;
-            gCanvas.beginPath();
-            gCanvas.rect(this.x+1, this.y+1, this.w-2, this.h-2);
-            gCanvas.stroke();
-        } else {
-            gCanvas.strokeStyle = 'hsl(0, 0%, 25%)';
-            gCanvas.lineWidth   = 1;
-            gCanvas.beginPath();
-            gCanvas.rect(this.x, this.y, this.w, this.h);
-            gCanvas.stroke();
-        }
+        var lStyle = (pActive) ? 'hsl(0, 100%, 75%)' : 'hsl(0, 0%, 25%)';
+        var lWidth = (pActive) ? 2 : 1;
+        cBox.prototype.rect.call(this, lStyle, lWidth);
     }
 }
 {// class cBus
