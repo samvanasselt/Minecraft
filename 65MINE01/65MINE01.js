@@ -719,7 +719,12 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         this.SetRunState();
     }
     cIC.prototype.NextState = function() {
-        if (this.RunState) this.SignalRun(); else this.SignalNext();
+        if (this.RunState) {
+            this.SignalRun();
+        } else {
+            this.SignalNext();
+            this.SignalShow();
+        }
         this.SetValue();
     }
     cIC.prototype.Tick = function() {
@@ -737,8 +742,10 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         }
     }
 }
-function NextPair()    { gUnits['IC'].SignalNext(); gUnits['IC'].SignalShow(); }
-function ProcessPair() { gUnits['IC'].SignalRun(); }
+function NextPair()    { gUnits['IC'].NextState(); }
+function ProcessPair() { gUnits['IC'].NextState(); }
+// function NextPair()    { gUnits['IC'].SignalNext(); gUnits['IC'].SignalShow(); }
+// function ProcessPair() { gUnits['IC'].SignalRun(); }
 {// class cPC
     function cPC() {
         cUnit.call(this,'PC',280,140,['RD','WD','RU','WA','++','RST']);
@@ -1137,7 +1144,11 @@ function ProcessPair() { gUnits['IC'].SignalRun(); }
         var lID = '';
         for (var i = 0; i < this.Values.length; i++) {
             lID = 'mm' + toHex(i);
-            document.getElementById(lID).innerHTML = toHex(this.Values[i]);
+            if (i == gUnits['AD'].Address()) {
+                document.getElementById(lID).innerHTML = '<b style="font-size:16px;"><font color="red">' + toHex(this.Values[i]) + '</font></b>';
+            } else {
+                document.getElementById(lID).innerHTML = toHex(this.Values[i]);
+            }
         }
     }
     cMM.prototype.Tick = function() {
