@@ -330,15 +330,16 @@ function Init65MINE01() {
 }
 {// class cUnitBox
     function cUnitBox(pNaam) {
+        cBox.call(this,0,0,100,40);
         var naam;
         var value;
-        var x,y,w,h;
+        // var x,y,w,h;
         this.naam  = pNaam;
         this.value = Math.floor(Math.random() * 256);
-        this.x = 0;
-        this.y = 0;
-        this.w = 100;
-        this.h = 40;
+        // this.x = 0;
+        // this.y = 0;
+        // this.w = 100;
+        // this.h = 40;
     }
     cUnitBox.prototype.SetXY = function(pX,pY) { this.x = pX; this.y = pY; }
     cUnitBox.prototype.LineToBus = function(pSignalID, pBusID, pRW)  {
@@ -351,11 +352,7 @@ function Init65MINE01() {
         gCanvas.beginPath();
         gCanvas.rect(x, y, w, 3);
         gCanvas.stroke();
-        // if (gSignals[pSignalID].Level == 1) {
-            // lBusBox.DrawActiveBus();
-        // }
     }
-    // cUnitBox.prototype.DrawBox = function(pValue = undefined) {
     cUnitBox.prototype.DrawBox = function(pValue, pActive) {
         // Zie http://www.w3schools.com/colors/colors_converter.asp
         // Rood  =   0
@@ -363,22 +360,10 @@ function Init65MINE01() {
         // Groen = 120
         // Cyaan = 180
         // Blauw = 240
-        gCanvas.fillStyle = 'hsl(120, 100%, 95%)';
-        gCanvas.fillRect(this.x, this.y, this.w, this.h);
-        if (pActive) {
-            gCanvas.strokeStyle = 'hsl(0, 100%, 75%)';
-            gCanvas.lineWidth   = 3;
-            gCanvas.beginPath();
-            gCanvas.rect(this.x+1, this.y+1, this.w-2, this.h-2);
-            gCanvas.stroke();
-        } else {
-            gCanvas.strokeStyle = 'hsl(0, 0%, 25%)';
-            gCanvas.lineWidth   = 1;
-            gCanvas.beginPath();
-            gCanvas.rect(this.x, this.y, this.w, this.h);
-            gCanvas.stroke();
-        }
-        gCanvas.lineWidth = 1;
+        cBox.prototype.fillRect.call(this, 'hsl(120, 100%, 95%)');
+        var lStyle = (pActive) ? 'hsl(0, 100%, 75%)' : 'hsl(0, 0%, 25%)';
+        var lWidth = (pActive) ? 2 : 1;
+        cBox.prototype.rect.call(this, lStyle, lWidth);
         var lValue = (pValue == undefined) ? this.value : pValue;
         this.value = lValue;
         for (var i = 0; i < 8; i++) {
@@ -505,27 +490,13 @@ function Init65MINE01() {
         cBox.call(this,0,0,72,0);
         var naam;
         var value;
-        // var x,y,w,h;
         this.naam  = pNaam;
         this.value = Math.floor(Math.random() * 256);
-        // this.x = 0;
-        // this.y = 0;
-        // this.w = 72;
-        // this.h = 0;
     }
     cBusBox.prototype.SetXYh = function(pX,pY,pH) { this.x = pX; this.y = pY; this.h = pH;}
-    cBusBox.prototype.DrawActiveBus = function() {
-        gCanvas.strokeStyle = 'hsl(60, 100%, 75%)'; // Geel, Max verzadiging, Driekwart licht.
-        gCanvas.beginPath();
-        gCanvas.rect(this.x, this.y, this.w, this.h);
-        gCanvas.stroke();
-    }
     cBusBox.prototype.DrawBox = function(pValue, pActive) {
         cBox.prototype.clearRect.call(this);
         cBox.prototype.fillRect.call(this, 'hsl(240, 0%, 95%)');
-        // gCanvas.clearRect(this.x, this.y, this.w, this.h);
-        // gCanvas.fillStyle = 'hsl(240, 0%, 95%)';
-        // gCanvas.fillRect(this.x, this.y, this.w, this.h);
         var lValue = (pValue == undefined) ? this.value : pValue;
         this.value = lValue;
         for (var i = 0; i < 8; i++) {
