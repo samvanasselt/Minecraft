@@ -45,6 +45,24 @@ function ResetCPU() {
         gSignals[this.FromName].Level = pLevel;
         if (this.ToName != undefined) gSignals[this.ToName].Level = pLevel;
     }
+    cSignalPair.prototype.SetActiveBus = function(pActive) {
+        var lWB = this.FromName.substr(3,2);
+        var lRB = (this.ToName == undefined) ? '' : this.ToName.substr(3,2);
+        var lBus = undefined;
+        switch (lWB) {
+            case 'WA': lBus = 'AB'; break;
+            case 'WD': lBus = 'DB'; break;
+            case 'WU': lBus = 'UB'; break;
+            default  : lBus = undefined; break;
+        }
+        if (lBus == undefined) switch (lRB) {
+            case 'RA': lBus = 'AB'; break;
+            case 'RD': lBus = 'DB'; break;
+            case 'RU': lBus = 'UB'; break;
+            default  : lBus = undefined; break;
+        }
+        if (lBus != undefined) gBusses[lBus].Active = pActive;
+    }
     cSignalPair.prototype.Tick = function() {
         var lUnitID;
         lUnitID = gSignals[this.FromName].UnitName.substr(0,2);
@@ -288,6 +306,20 @@ function Init65MINE01() {
     // document.getElementById("button-next-signals").style.visibility = "visible";
     // document.getElementById("button-process-signals").style.visibility = "hidden";
 }
+{// class cBox
+    function cBox(pX,pY,pW,pH) {
+        this.x = pX;
+        this.y = pY;
+        this.w = pW;
+        this.h = pH;
+    }
+    cBox.prototype.rect = function(pStyle) {
+        if (!(pStyle == undefined)) gCanvas.strokeStyle = pStyle;
+        gCanvas.beginPath();
+        gCanvas.rect(this.x, this.y, this.w, this.h);
+        gCanvas.stroke();
+    }
+}
 {// class cUnitBox
     function cUnitBox(pNaam) {
         var naam;
@@ -311,9 +343,9 @@ function Init65MINE01() {
         gCanvas.beginPath();
         gCanvas.rect(x, y, w, 3);
         gCanvas.stroke();
-        if (gSignals[pSignalID].Level == 1) {
-            lBusBox.DrawActiveBus();
-        }
+        // if (gSignals[pSignalID].Level == 1) {
+            // lBusBox.DrawActiveBus();
+        // }
     }
     // cUnitBox.prototype.DrawBox = function(pValue = undefined) {
     cUnitBox.prototype.DrawBox = function(pValue, pActive) {
@@ -390,19 +422,18 @@ function Init65MINE01() {
         }
         return lIsActive;
     }
-    cUnit.prototype.Draw = function() {
-        var ni = 0;
+    cUnit.prototype.DrawInputs = function(pBox) {
+        var lBox = new cBox(pBox.x, pBox.y + pBox.h, pBox.w, 4);
         if (this.Inputs.length > 0) {
             var n = Math.floor((this.Inputs.length + 2) / 3);
             if (n < 2) n = 2;
-            ni = n;
-            var x = this.UnitBox.x + 3 - 32;
+            var x = lBox.x + 3 - 32;
             var y;
             var lSignalID;
             for (var i = 0; i < this.Inputs.length; i++) {
                 if (i % n == 0) {
                     x += 32;
-                    y = this.UnitBox.y + 44;
+                    y = lBox.y + 4;
                 }
                 lSignalID = SignalID(this.Naam, this.Inputs[i]);
                 if (gSignals[lSignalID].Level == 1) gCanvas.fillStyle = 'hsl(  0, 100%, 75%)';
@@ -410,7 +441,6 @@ function Init65MINE01() {
                 gCanvas.beginPath();
                 gCanvas.fillRect(x, y, 7, 7);
                 gCanvas.stroke();
-                // gCanvas.fillStyle = 'hsl(0,   0%, 25%)';
                 gCanvas.font = "8px Verdana";
                 gCanvas.fillText(this.Inputs[i], x + 10, y + 6);
                 y += 10;
@@ -424,21 +454,23 @@ function Init65MINE01() {
                     default:                                                 break;
                 }
             }
-            gCanvas.strokeStyle = 'hsl(  0,   0%, 50%)';
-            gCanvas.beginPath();
-            gCanvas.rect(this.UnitBox.x, this.UnitBox.y + 40, this.UnitBox.w, 10 * n + 4);
-            gCanvas.stroke();
+            lBox.h = 10 * n + 4;
+            lBox.rect('hsl(  0,   0%, 50%)');
         }
+        return lBox;
+    }
+    cUnit.prototype.DrawOutputs = function(pBox) {
+        var lBox = new cBox(pBox.x, pBox.y + pBox.h, pBox.w, 4);
         if (this.Outputs.length > 0) {
             var n = Math.floor((this.Outputs.length + 2) / 4);
             if (n < 1) n = 1;
-            var x = this.UnitBox.x + 3 - 24;
+            var x = pBox.x + 3 - 24;
             var y;
             var lSignalID;
             for (var i = 0; i < this.Outputs.length; i++) {
                 if (i % n == 0) {
                     x += 24;
-                    y = this.UnitBox.y + 44 + 10 * ni + 4;
+                    y = pBox.y + pBox.h + 4;
                 }
                 lSignalID = SignalID(this.Naam, this.Outputs[i]);
                 if (gSignals[lSignalID].Level == 1) gCanvas.fillStyle = 'hsl(  0, 100%, 75%)';
@@ -446,17 +478,18 @@ function Init65MINE01() {
                 gCanvas.beginPath();
                 gCanvas.fillRect(x, y, 7, 7);
                 gCanvas.stroke();
-                // gCanvas.fillStyle = 'hsl(0,   0%, 25%)';
                 gCanvas.font = "8px Verdana";
                 gCanvas.fillText(this.Outputs[i], x + 10, y + 6);
                 y += 10;
             }
-            y = this.UnitBox.y + 40 + 10 * ni + 4;
-            gCanvas.strokeStyle = 'hsl(  0,   0%, 50%)';
-            gCanvas.beginPath();
-            gCanvas.rect(this.UnitBox.x, y, this.UnitBox.w, 10 * n + 4);
-            gCanvas.stroke();
+            lBox.h = 10 * n + 4;
+            lBox.rect('hsl(  0,   0%, 50%)');
         }
+        return lBox;
+    }
+    cUnit.prototype.Draw = function() {
+        var lInputBox = this.DrawInputs(this.UnitBox);
+        var lOutputBox = this.DrawOutputs(lInputBox);
         this.UnitBox.DrawBox(this.Value, this.IsActive());
     }
 }
@@ -479,15 +512,10 @@ function Init65MINE01() {
         gCanvas.rect(this.x, this.y, this.w, this.h);
         gCanvas.stroke();
     }
-    // cBusBox.prototype.DrawBox = function(pValue = undefined) {
-    cBusBox.prototype.DrawBox = function(pValue) {
+    cBusBox.prototype.DrawBox = function(pValue, pActive) {
         gCanvas.clearRect(this.x, this.y, this.w, this.h);
         gCanvas.fillStyle = 'hsl(240, 0%, 95%)';
         gCanvas.fillRect(this.x, this.y, this.w, this.h);
-        gCanvas.strokeStyle = 'hsl(0, 0%, 25%)'; // Rood, Geen kleur, Kwart licht.
-        gCanvas.beginPath();
-        gCanvas.rect(this.x, this.y, this.w, this.h);
-        gCanvas.stroke();
         var lValue = (pValue == undefined) ? this.value : pValue;
         this.value = lValue;
         for (var i = 0; i < 8; i++) {
@@ -495,13 +523,23 @@ function Init65MINE01() {
             if (lValue % 2 == 1) gCanvas.fillStyle = 'hsl(120, 50%, 70%)';
             else                 gCanvas.fillStyle = 'hsl(  0,  0%, 80%)';
             lValue = Math.floor(lValue / 2);
-            // gCanvas.fillRect(this.x + 63 - 8 * i, this.y + 28, 2, this.h - 32);
             gCanvas.fillRect(this.x + 63 - 8 * i, this.y + 4, 3, this.h - 8);
             gCanvas.stroke();
             gCanvas.fillStyle = 'hsl(0,   0%, 25%)';
             gCanvas.font = "20px Verdana";
-            // gCanvas.fillText(this.naam,  this.x + 3, this.y + 20);
-            // gCanvas.fillText(toHex(this.value),this.x + 43, this.y + 20);
+        }
+        if (pActive) {
+            gCanvas.strokeStyle = 'hsl(0, 100%, 75%)';
+            gCanvas.lineWidth   = 3;
+            gCanvas.beginPath();
+            gCanvas.rect(this.x+1, this.y+1, this.w-2, this.h-2);
+            gCanvas.stroke();
+        } else {
+            gCanvas.strokeStyle = 'hsl(0, 0%, 25%)';
+            gCanvas.lineWidth   = 1;
+            gCanvas.beginPath();
+            gCanvas.rect(this.x, this.y, this.w, this.h);
+            gCanvas.stroke();
         }
     }
 }
@@ -512,13 +550,18 @@ function Init65MINE01() {
         var BusBox;
         var Nflag;
         var Zflag;
+        var Active;
         this.Naam    = pNaam;
         this.Value   = Math.floor(Math.random() * 256);
         this.UnitBox = new cUnitBox(this.Naam);
         this.BusBox = new cBusBox(this.Naam);
         this.UnitBox.SetXY(pX,pY);
+        this.Active = false;
     }
-    cBus.prototype.Draw = function() { this.BusBox.DrawBox(this.Value); this.UnitBox.DrawBox(this.Value); }
+    cBus.prototype.Draw = function() {
+        this.BusBox.DrawBox(this.Value, this.Active);
+        this.UnitBox.DrawBox(this.Value, this.Active);
+    }
     cBus.prototype.Flags = function() {
         var lFlags = 0;
         this.Nflag = (this.Value > 127) ? true : false;
@@ -671,6 +714,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             }
             var lPair = cPLA.SignalPairs[cPLA.SetIndex];
             lPair.SetLevel(1);
+            lPair.SetActiveBus(true);
             Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
             Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
             var lElement = document.getElementById("PLA-signal-pair");
@@ -690,6 +734,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
             Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
             lPair.SetLevel(0);
+            lPair.SetActiveBus(false);
         }
         this.ClearRunState();
         this.SetValue();
