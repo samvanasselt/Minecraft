@@ -5,37 +5,8 @@
     <script src ="65MINE01.js"  type="text/javascript" ></script>
 </head>
 <body onload="Init65MINE01()">
-    <!--
-    <button onclick="NextTick()">Next Tick</button>
-    <button onclick="ResetClock()">Reset Clock</button>
-    -->
-    &#x2534;
-    &#x252C;
-    <!-- https://www.w3schools.com/charsets/ref_utf_box.asp -->
-    <div class="signals">
-        <button id="button-next-pair" onclick="NextPair()">Next Pair</button>
-        <button id="button-process-pair" onclick="ProcessPair()">Process Pair</button>
-        <br />
-        <button onclick="RunSignals()">Run</button>
-        <button onclick="HaltCPU()">Halt</button>
-        <div class="instruction"><h3>Instruction</h3><p              id="instruction"></p></div>
-        <div class="infoblock"><h4>Cycle</h4>      <p class="code" id="PLA-cycle"></p></div>
-        <h4>Signal Pair</h4><p class="code" id="PLA-signal-pair">-</p>
-        <!-- <h4>Signals</h4>    <p class="code" id="PLA-signals">-</p> -->
-    </div>
-    <!--
-    <div class="signals">
-        <h3>Signals</h3>
-        <button id="button-next-signals" onclick="NextSignals()">Next Signals</button>
-        <button id="button-process-signals" onclick="ProcessSignals()">Process Signals</button>
-        <br />
-        <button onclick="RunSignals()">Run</button>
-        <button onclick="HaltCPU()">Halt</button>
-        <p class="code" id="tick-signals"></p>
-    </div>
-    -->
     <div class="divleft"><canvas id="cpu"  width="840" height="800">Canvas wordt niet ondersteund door deze browser</canvas></div>
-    <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
+    <hr>
     <div class="memory">
         <table>
             <tr><th>00</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr>
@@ -57,5 +28,18 @@
             <tr><th>F</th><td id="mmF0">0</td><td id="mmF1">1</td><td id="mmF2">2</td><td id="mmF3">3</td><td id="mmF4">4</td><td id="mmF5">5</td><td id="mmF6">6</td><td id="mmF7">7</td><td id="mmF8">8</td><td id="mmF9">9</td><td id="mmFA">A</td><td id="mmFB">B</td><td id="mmFC">C</td><td id="mmFD">D</td><td id="mmFE">E</td><td id="mmFF">F</td></tr>
         </table>
     </div>
+    <hr>
+    <div class="signals">
+        <button onclick="RunSignals()">Run</button>
+        <button onclick="HaltCPU()">Halt</button>
+        <button id="button-next-pair" onclick="NextPair()">Next Pair</button>
+        <button id="button-process-pair" onclick="ProcessPair()">Process Pair</button>
+        <div class="instruction"><h3>Instruction - Cycle - Signal Pair</h3><p id="instruction-info"></p></div>
+    </div>
+    <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
+    <!--
+    &#x2534;
+    &#x252C;
+    <!-- https://www.w3schools.com/charsets/ref_utf_box.asp -->
 </body>
 </html>
