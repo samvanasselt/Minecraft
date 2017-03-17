@@ -434,7 +434,7 @@ function Init65MINE01() {
                 gCanvas.beginPath();
                 gCanvas.fillRect(x, y, 7, 7);
                 gCanvas.stroke();
-                gCanvas.font = "8px Verdana";
+                gCanvas.font = "normal normal lighter 8px Verdana";
                 gCanvas.fillText(this.Inputs[i], x + 10, y + 6);
                 y += 10;
                 switch (this.Inputs[i]) {
@@ -797,13 +797,20 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     cIR.prototype.SignalPairs = function(pCycle) {
         return gInstructions[this.Value].SignalPairs[pCycle];
     }
+    cIR.prototype.SetOutputs = function() {
+        var lValue = this.Value;
+        for (var i = 0; i < 4; i++) {
+            gSignals[this.Naam + '.f' + i].Level = lValue % 2;
+            lValue = Math.floor(lValue / 2);
+        }
+    }
     cIR.prototype.Tick = function() {
         var lSignalID;
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignalID = SignalID('IR',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
                 switch(this.Inputs[i]) {
-                    case 'RD' : this.Value = gBusses['DB'].Value; break;
+                    case 'RD' : this.Value = gBusses['DB'].Value; this.SetOutputs(); break;
                 }
             }
         }
@@ -1008,19 +1015,23 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         var Cflag;
         var Vflag;
         var Zflag;
-        cUnit.call(this,'AL',384,320+40,['+','AND','OR','XOR','WU']); //  OC.RD = Set Carry for ALU computation
+        cUnit.call(this,'AL',384,320+20,['+','AND','OR','XOR','WU'], ['N','V','C','Z']); //  OC.RD = Set Carry for ALU computation
         this.Value = 0;
         gUnits['AL'] = this;
     }
     cAL.prototype = Object.create(cUnit.prototype);
     cAL.prototype.Flags = function() {
         var lFlags = 0;
-        this.Nflag = (this.Value > 127) ? true : false;
-        this.Zflag = (this.Value == 0);
-        if ( this.Nflag) lFlags |= 128;
-        if ( this.Cflag) lFlags |=   2;
-        if (!this.Zflag) lFlags |=   1;
+        if (this.Nflag) lFlags |= 128;
+        if (this.Cflag) lFlags |=   2;
+        if (this.Zflag) lFlags |=   1;
         return lFlags;
+    }
+    cAL.prototype.SetOutputs = function() {
+        gSignals['AL.N'].Level = (this.Nflag) ? 1 : 0;
+        gSignals['AL.V'].Level = (this.Vflag) ? 1 : 0;
+        gSignals['AL.C'].Level = (this.Cflag) ? 1 : 0;
+        gSignals['AL.Z'].Level = (this.Zflag) ? 1 : 0;
     }
     cAL.prototype.Tick = function() {
         var lSignalID;
@@ -1050,6 +1061,9 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         if (FlagAnd) this.Value = lOA & lOB;
         if (FlagOr ) this.Value = lOA | lOB;
         if (FlagXor) this.Value = lOA ^ lOB;
+        this.Nflag =  (this.Value > 127) ? true : false;
+        this.Zflag = !(this.Value == 0);
+        this.SetOutputs();
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignalID = SignalID('AL',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
@@ -1066,18 +1080,21 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         var Nflag;
         var Cflag;
         var Zflag;
-        cUnit.call(this,'SH',384,320+40+24+40,['<','>','WU']);
+        cUnit.call(this,'SH',384,320+40+24+40,['<','>','WU'],['N','C','Z']);
         gUnits['SH'] = this;
     }
     cSH.prototype = Object.create(cUnit.prototype);
     cSH.prototype.Flags = function() {
         var lFlags = 0;
-        this.Nflag = (this.Value > 127) ? true : false;
-        this.Zflag = (this.Value == 0);
-        if ( this.Nflag) lFlags |= 128;
-        if ( this.Cflag) lFlags |=   2;
-        if (!this.Zflag) lFlags |=   1;
+        if (this.Nflag) lFlags |= 128;
+        if (this.Cflag) lFlags |=   2;
+        if (this.Zflag) lFlags |=   1;
         return lFlags;
+    }
+    cSH.prototype.SetOutputs = function() {
+        gSignals['SH.N'].Level = (this.Nflag) ? 1 : 0;
+        gSignals['SH.C'].Level = (this.Cflag) ? 1 : 0;
+        gSignals['SH.Z'].Level = (this.Zflag) ? 1 : 0;
     }
     cSH.prototype.Tick = function() {
         var lSignalID;
@@ -1086,8 +1103,11 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         gSignals['SH.>'].Level = (FlagShiftRight) ? 1 : 0;
         var lOA = gUnits['OA'].Value;
         var lOC = gUnits['OC'].Value;
-        this.Cflag = (FlagShiftRight) ? lOA % 1 == 1 : lOA > 127;
-        this.Value = (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : lOA << 1 + lOC;
+        this.Value =  (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : lOA << 1 + lOC;
+        this.Cflag =  (FlagShiftRight) ? lOA % 1 == 1 : lOA > 127;
+        this.Nflag =  (this.Value > 127) ? true : false;
+        this.Zflag = !(this.Value == 0);
+        this.SetOutputs();
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignalID = SignalID('SH',this.Inputs[i]);
             if (gSignals[lSignalID].Level == 1) {
@@ -1232,7 +1252,6 @@ function NextSignals() {
     }
 }
 function ProcessSignals() {
-    // gUnits['IC'].CycleNext();
     if (gSignalIDs != undefined) {
         gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 1 });
         gSignalIDs.forEach(function(ID) {
@@ -1247,12 +1266,7 @@ function ProcessSignals() {
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
 }
 function HaltCPU() { clearInterval(fRunSignal); }
-// function RunSignal() {
-    // NextSignals();
-    // ProcessSignals();
-// }
 function RunStates() { gUnits['IC'].NextState(); }
 function RunSignals() {
-    // fRunSignal = setInterval(RunSignal, 1000);
     fRunSignal = setInterval(RunStates, 1000);
 }
