@@ -326,7 +326,6 @@ function InitCPUcanvas() {
     }
 }
 function Init65MINE01() {
-    ResetClock();
     InitCPUcanvas();
     cUnit.InitUnits();
     cBus.InitBusses();
@@ -360,15 +359,8 @@ function Init65MINE01() {
 {// class cUnitBox
     function cUnitBox(pNaam) {
         cBox.call(this,0,0,100,40);
-        var naam;
-        var value;
-        // var x,y,w,h;
         this.naam  = pNaam;
         this.value = Math.floor(Math.random() * 256);
-        // this.x = 0;
-        // this.y = 0;
-        // this.w = 100;
-        // this.h = 40;
     }
     cUnitBox.prototype.SetXY = function(pX,pY) { this.x = pX; this.y = pY; }
     cUnitBox.prototype.LineToBus = function(pSignalID, pBusID, pRW)  {
@@ -517,21 +509,21 @@ function Init65MINE01() {
         this.UnitBox.DrawBox(this.Value, this.IsActive());
     }
     cUnit.InitUnits =function() {
-        new cMM();
-        new cML();
-        new cIC();
-        new cCK();
-        new cIR();
-        new cFL();
-        new cPC();
-        new cSP();
-        new cOC();
-        new cOB();
-        new cOA();
-        new cAL();
-        new cSH();
-        new cAC();
-        new cAD();
+        new cMM(720, 30);
+        new cML(280,100);
+        new cIC( 20,200);
+        new cCK( 20,132);
+        new cIR( 20, 30);
+        new cFL( 20,480);
+        new cPC(280,240);
+        new cSP(280,170);
+        new cOC(280,320+40+24);
+        new cOB(280,320);
+        new cOA(280,320+40+24+40+24);
+        new cAL(384,320+20);
+        new cSH(384,320+40+24+40);
+        new cAC(280,520);
+        new cAD(720,120);
     }
 }
 {// class cBusBox
@@ -576,6 +568,7 @@ function Init65MINE01() {
         this.UnitBox = new cUnitBox(this.Naam);
         this.BusBox = new cBusBox(this.Naam);
         this.UnitBox.SetXY(pX,pY);
+        this.BusBox.SetXYh( pX+14, pY+40, pH-40);
         this.Active = false;
     }
     cBus.prototype.Draw = function() {
@@ -591,9 +584,9 @@ function Init65MINE01() {
         return lFlags;
     }
     cBus.InitBusses = function() {
-        gBusses['DB'] = new cBus('DB', 160-14, 24, 560); gBusses['DB'].BusBox.SetXYh(160, 24+40, 560-40);
-        gBusses['UB'] = new cBus('UB', 520-14,110, 474); gBusses['UB'].BusBox.SetXYh(520,110+40, 560-110+24-40);
-        gBusses['AB'] = new cBus('AB', 620-14, 24, 260); gBusses['AB'].BusBox.SetXYh(620, 24+40, 260-40);
+        gBusses['DB'] = new cBus('DB', 160-14,  4, 580); // gBusses['DB'].BusBox.SetXYh(160, 4+40, 580-40);
+        gBusses['UB'] = new cBus('UB', 510-14,210, 374); // gBusses['UB'].BusBox.SetXYh(520,110+40, 560-110+24-40);
+        gBusses['AB'] = new cBus('AB', 620-14, 74, 210); // gBusses['AB'].BusBox.SetXYh(620, 24+40, 260-40);
     }
 }
 //  ==========================================================================  //
@@ -603,8 +596,8 @@ function Init65MINE01() {
     }
 }
 {// class cCK
-    function cCK() {
-        cUnit.call(this,'CK',20,132,[],['p0','p1']);
+    function cCK(pX,pY) {
+        cUnit.call(this,'CK',pX,pY,[],['p0','p1']);
         this.Wires = [1,0,0,0,0];
         gUnits['CK'] = this;
     }
@@ -634,11 +627,11 @@ function Init65MINE01() {
     }
 }
 {// class cIC
-    function cIC() {
+    function cIC(pX,pY) {
         var RunState = false;
         var InfoQueue;
         this.InfoQueue = [];
-        cUnit.call(this,'IC',20,200,['p0','p1','RS','CR'],['t0','t1','t2','t3','t4','t5','t6','t7']);
+        cUnit.call(this,'IC',pX,pY,['p0','p1','RS','CR'],['t0','t1','t2','t3','t4','t5','t6','t7']);
         gUnits['IC'] = this;
     }
     cIC.prototype = Object.create(cUnit.prototype);
@@ -778,8 +771,8 @@ function Init65MINE01() {
 function NextPair()    { gUnits['IC'].NextState(); }
 function ProcessPair() { gUnits['IC'].NextState(); }
 {// class cPC
-    function cPC() {
-        cUnit.call(this,'PC',280,140,['RD','WD','RU','WA','++','RST']);
+    function cPC(pX,pY) {
+        cUnit.call(this,'PC',pX,pY,['RD','WD','RU','WA','++','RST']);
         gUnits['PC'] = this;
     }
     cPC.prototype = Object.create(cUnit.prototype);
@@ -801,8 +794,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cIR
-    function cIR() {
-        cUnit.call(this, 'IR',20,300,['RD'],['f3','f2','f1','f0']);
+    function cIR(pX,pY) {
+        cUnit.call(this,'IR',pX,pY,['RD'],['f3','f2','f1','f0']);
         this.Value = parseInt('00010111',2);     //  NOP
         gUnits['IR'] = this;
     }
@@ -858,8 +851,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cSP
-    function cSP() {
-        cUnit.call(this, 'SP',280,220,['RD','WD','WA']);
+    function cSP(pX,pY) {
+        cUnit.call(this,'SP',pX,pY,['RD','WD','WA']);
         gUnits['SP'] = this;
     }
     cSP.prototype = Object.create(cUnit.prototype);
@@ -878,8 +871,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cAD
-    function cAD() {
-        cUnit.call(this,'AD',720,120,['RA']);
+    function cAD(pX,pY) {
+        cUnit.call(this,'AD',pX,pY,['RA']);
         gUnits['AD'] = this;
     }
     cAD.prototype = Object.create(cUnit.prototype);
@@ -897,8 +890,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cML
-    function cML() {
-        cUnit.call(this,'ML',280,50,['RD','WD','WA']);
+    function cML(pX,pY) {
+        cUnit.call(this,'ML',pX,pY,['RD','WD','WA']);
         gUnits['ML'] = this;
     }
     cML.prototype = Object.create(cUnit.prototype);
@@ -917,8 +910,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cAC
-    function cAC() {
-        cUnit.call(this,'AC',280,520,['RD','WD','RU']);
+    function cAC(pX,pY) {
+        cUnit.call(this,'AC',pX,pY,['RD','WD','RU']);
         gUnits['AC'] = this;
     }
     cAC.prototype = Object.create(cUnit.prototype);
@@ -937,8 +930,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cFL
-    function cFL() {
-        cUnit.call(this,'FL',20,480,['RD','WD','AL','NZ','SH','DB','CY'],['N','V','C','Z']);
+    function cFL(pX,pY) {
+        cUnit.call(this,'FL',pX,pY,['RD','WD','AL','NZ','SH','DB','CY'],['N','V','C','Z']);
         this.Value &= this.Mask('NV....CZ',false);
         this.SetSignals();
         gUnits['FL'] = this;
@@ -982,8 +975,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cOA
-    function cOA() {
-        cUnit.call(this,'OA',280,320+40+24+40+24,['RD']);
+    function cOA(pX,pY) {
+        cUnit.call(this,'OA',pX,pY,['RD']);
         gUnits['OA'] = this;
     }
     cOA.prototype = Object.create(cUnit.prototype);
@@ -1000,8 +993,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cOB
-    function cOB() {
-        cUnit.call(this,'OB',280,320,['1','-B','RD']);
+    function cOB(pX,pY) {
+        cUnit.call(this,'OB',pX,pY,['1','-B','RD']);
         gUnits['OB'] = this;
     }
     cOB.prototype = Object.create(cUnit.prototype);
@@ -1026,8 +1019,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cOC
-    function cOC() {
-        cUnit.call(this,'OC',280,320+40+24,['0','C','RD']); //  RD = Set Carry for ALU computation
+    function cOC(pX,pY) {
+        cUnit.call(this,'OC',pX,pY,['0','C','RD']); //  RD = Set Carry for ALU computation
         this.Value = 0;
         gUnits['OC'] = this;
     }
@@ -1051,12 +1044,12 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cAL
-    function cAL() {
+    function cAL(pX,pY) {
         var Nflag;
         var Cflag;
         var Vflag;
         var Zflag;
-        cUnit.call(this,'AL',384,320+20,['+','AND','OR','XOR','WU'], ['N','V','C','Z']); //  OC.RD = Set Carry for ALU computation
+        cUnit.call(this,'AL',pX,pY,['+','AND','OR','XOR','WU'], ['N','V','C','Z']); //  OC.RD = Set Carry for ALU computation
         this.Value = 0;
         gUnits['AL'] = this;
     }
@@ -1116,12 +1109,12 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cSH
-    function cSH() {
+    function cSH(pX,pY) {
         var Value;
         var Nflag;
         var Cflag;
         var Zflag;
-        cUnit.call(this,'SH',384,320+40+24+40,['<','>','WU'],['N','C','Z']);
+        cUnit.call(this,'SH',pX,pY,['<','>','WU'],['N','C','Z']);
         gUnits['SH'] = this;
     }
     cSH.prototype = Object.create(cUnit.prototype);
@@ -1160,8 +1153,8 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     }
 }
 {// class cMM
-    function cMM() {
-        cUnit.call(this,'MM',20,50,['RD','WD']);
+    function cMM(pX,pY) {
+        cUnit.call(this,'MM',pX,pY,['RD','WD']);
         gUnits['MM'] = this;
         var Values;
         this.Values = [];
@@ -1210,86 +1203,6 @@ function ProcessPair() { gUnits['IC'].NextState(); }
                 }
             }
         }
-    }
-}
-{// PLA
-    function PLA_INA(pPhase) {   //  INA    Increment accumulator
-        if (pPhase == 2) { document.getElementById("tick-signals").innerHTML += '<br />INA'; }
-        if (pPhase == 3) { NextInstruction(); NextTick.Cycle--; }
-        switch (pPhase) {
-            case 2: return ['AC.WD','OA.RD','OB.RD','OC.RD']; break; // OA=AC, OB=1 Zet de accu in operand A van de ALU, zet operand B op 1
-            case 3: return ['AL.WU','AC.RU'];                 break; // AC=ALU
-        }
-    }
-    function PLA_LDA_nn(pPhase) {   //  LDA nn  Load accumulator from memory address
-        if (pPhase == 2) { document.getElementById("tick-signals").innerHTML += '<br />LDA nn'; }
-        if (pPhase == 3) { NextInstruction(); NextTick.Cycle--; }
-        switch (pPhase) {
-            case 2: return ['PC.WA','AD.RA','MM.WD','ML.RD'];         break; // ML=(PC) Haal het adres vanwaar AC geladen moet worden
-            case 3: return ['ML.WA','AD.RA','MM.WD','AC.RD','PC.++']; break; // AC=(ML), PC++  Laad AC uit geheugen, verhoog PC
-        }
-    }
-    function PLA_STA_nn(pPhase) {   //  STA nn  Store accumulator in memory address
-        if (pPhase == 2) { document.getElementById("tick-signals").innerHTML += '<br />STA nn'; }
-        if (pPhase == 3) { NextInstruction(); NextTick.Cycle--; }
-        switch (pPhase) {
-            case 2: return ['PC.WA','AD.RA','MM.WD','ML.RD'];         break; // ML=(PC) Haal het adres waar AC in opgeslagen moet worden
-            case 3: return ['ML.WA','AD.RA','AC.WD','MM.RD','PC.++']; break; // (ML)=AC, PC++  Zet AC in geheugen, verhoog PC
-        }
-    }
-    function PLA_TAS(pPhase) {   //  TAS    Load stack pointer from accumulator
-        if (pPhase == 2) {
-            document.getElementById("tick-signals").innerHTML += '<br />TAS';
-            NextInstruction();
-            NextTick.Cycle--;
-        }
-        switch (pPhase) {
-            case 2: return ['AC.WD','SP.RD']; break; // SP=AC
-        }
-    }
-    function PLA_JMP_nn(pPhase) {   //  JMP nn  Jump to location nn
-        if (pPhase == 2) { document.getElementById("tick-signals").innerHTML += '<br />JMP nn'; }
-        if (pPhase == 3) { NextInstruction(); NextTick.Cycle--; }
-        switch (pPhase) {
-            case 2: return ['PC.WA','AD.RA','MM.WD','ML.RD'];   break; // ML=(PC) Haal het adres vanwaar PC geladen moet worden
-            case 3: return ['ML.WD','PC.RD'];                   break; // PC=(ML) Laad PC uit geheugen
-        }
-    }
-    function PLA(pPhase) {
-        gUnits['IC'].CycleShow();
-        if (pPhase == 0) return ['PC.WA','AD.RA','MM.WD','IR.RD'];
-        if (pPhase == 1) return ['PC.++'];
-        var lIns = gUnits['IR'].Opcode();    //  Instructie
-        switch (lIns) {
-            case '00000001': return PLA_INA   (pPhase); break;   // INA
-            case '11010000': return PLA_LDA_nn(pPhase); break;   // LDA nn
-            case '11010001': return PLA_STA_nn(pPhase); break;   // STA nn
-            case '00010101': return PLA_TAS   (pPhase); break;   // TAS
-            case '11110000': return PLA_JMP_nn(pPhase); break;   // JMP nn
-        }
-    }
-}
-function NextInstruction() {
-    NextTick.Cycle = 0;
-    NextTick.Time++;
-    gUnits['IC'].ResetIC(7);
-}
-function ResetClock() {
-    NextTick.Cycle = 0;
-    NextTick.Time  = 0;
-}
-function NextTick() {}
-function NextSignals() {
-    gSignalIDs = PLA(NextTick.Cycle);
-    document.getElementById("tick-signals").innerHTML += '<br />' + gSignalIDs;
-    if (gSignalIDs == undefined) {
-        clearInterval(fRunSignal);
-    } else {
-        NextTick.Cycle++;
-        if (NextTick.Cycle > 7) { NextInstruction(); }
-        gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 1 });
-        Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
-        Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     }
 }
 function ProcessSignals() {
