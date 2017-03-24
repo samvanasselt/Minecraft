@@ -4,7 +4,7 @@ var gBusses  = [];
 var gSignals = [];
 var gSignalIDs = [];
 var gSignalPairs  = [];
-var gSignalSets       = [];
+var gCycles       = [];
 var gInstructions = [];
 var gMnemonicQueue = [];
 function toBin(pValue) {
@@ -31,6 +31,20 @@ function ResetCPU() {
     gUnits['IC'].ResetIC();
     cPLA.SetIndex = 99;
 }
+{// class cLogic
+    function cLogic() {}
+    cLogic.NOT = function(pLevel)  { return 1 - pLevel; }
+    cLogic.AND = function(pLevels) {
+        lLevel = 1;
+        pLevels.forEach( function(rLevel) { lLevel *= rLevel; });
+        return lLevel;
+    }
+    cLogic.OR = function(pLevels) {
+        lLevel = 0;
+        pLevels.forEach( function(rLevel) { lLevel += rLevel; });
+        return Math.min(1, lLevel);
+    }
+}
 {// class cSignal
     function cSignal(pUnitName, pSignalName) {
         var UnitName;
@@ -41,6 +55,13 @@ function ResetCPU() {
         this.Level      = 0;
         gSignals[this.ID()] = this;
     }
+    cSignal.SignalID  = function(pUnitName, pSignalName) { return pUnitName + '.' +  pSignalName; }
+    cSignal.GetSignal = function(pUnitName, pSignalName) {
+        lSignalID = cSignal.SignalID(pUnitName, pSignalName);
+        try        { return gSignals[lSignalID]; }
+        catch(err) { console.log('Signal [\'' + lSignalID + '\'] not found. '); }
+    }
+    cSignal.prototype.SetLevel = function(pLevel) { this.Level = Math.min(1,pLevel); }
     cSignal.prototype.ID   = function() { return this.UnitName + '.' +  this.SignalName; }
     cSignal.prototype.Tick = function() { gUnits[this.UnitName].Tick(); }
 }
@@ -86,61 +107,61 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
             gUnits[lUnitID].Tick();
         }
     }
-}
-function InitSignalPairs() {
-    new cSignalPair('AD=PC','PC.WA','AD.RA');   //  Load address register from program counter
-    new cSignalPair('AD=ML','ML.WA','AD.RA');   //  Load address register from memory latch
-    new cSignalPair('AD=SP','SP.WA','AD.RA');   //  Load address register from stack pointer
-    new cSignalPair('ML=MM','MM.WD','ML.RD');   //  Load memory latch from memory address AD
-    new cSignalPair('IR=MM','MM.WD','IR.RD');   //  Load instruction register from memory address AD
-    new cSignalPair('PC++' ,'PC.++'        );   //  Increment program counter
-    new cSignalPair('PC=MM','MM.WD','PC.RD');   //  Load program counter from memory address AD
-    new cSignalPair('PC=ML','ML.WD','PC.RD');   //  Load program counter from memory latch
-    new cSignalPair('PC=AL','AL.WU','PC.RU');   //  Load program counter from ALU
-    new cSignalPair('SP=AL','AL.WU','SP.RU');   //  Load stack pointer from ALU
-    new cSignalPair('SP=AC','AC.WD','SP.RD');   //  Load stack pointer from accumulator
-    new cSignalPair('OA=AC','AC.WD','OA.RD');   //  Load operand A from accumulator
-    new cSignalPair('OA=PC','PC.WD','OA.RD');   //  Load operand A from program counter
-    new cSignalPair('OA=SP','SP.WD','OA.RD');   //  Load operand A from stack pointer
-    new cSignalPair('OB=MM','MM.WD','OB.RD');   //  Load operand B from memory address AD  or  Load with 1
-    new cSignalPair('OB=ML','ML.WD','OB.RD');   //  Load operand B from memory latch  or  Load with 1
-    new cSignalPair('OB'           ,'OB.RD');   //  Load operand B from data bus  or  Load with 1
-    new cSignalPair('OC'           ,'OC.RD');   //  Load operand C from carry flag  or  with 0  or  with 1
-    new cSignalPair('AC=MM','MM.WD','AC.RD');   //  Load accumulator from memory address AD
-    new cSignalPair('AC=ML','ML.WD','AC.RD');   //  Load accumulator from memory latch
-    new cSignalPair('AC=SP','SP.WD','AC.RD');   //  Load accumulator from stack pointer
-    new cSignalPair('AC=AL','AL.WU','AC.RU');   //  Load accumulator from ALU
-    new cSignalPair('AC=SH','SH.WU','AC.RU');   //  Load accumulator from shift register
-    new cSignalPair('MM=AC','AC.WD','MM.RD');   //  Load memory address AD from accumulator     (write to memory)
-    new cSignalPair('MM=PC','PC.WD','MM.RD');   //  Load memory address AD from program counter (write to memory)
-    new cSignalPair('MM=FL','FL.WD','MM.RD');   //  Load memory address AD from flags           (write to memory)
-    new cSignalPair('FL=MM','MM.WD','FL.RD');   //  Load flags from memory address AD
-    new cSignalPair('FL=SH'        ,'FL.SH');   //  Load N   C Z flags from ALU
-    new cSignalPair('FL=AL'        ,'FL.AL');   //  Load N V C Z flags from ALU
-    new cSignalPair('FL=NZ'        ,'FL.NZ');   //  Load N     Z flags from ALU
-    new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
-    new cSignalPair('CY=i1'        ,'FL.CY');   //  Read Carry from instruction bit 1
-    new cSignalPair('IC.RS'        ,'IC.RS');   //  Reset instruction clock
-    new cSignalPair('IC.CR'        ,'IC.CR');   //  Conditional reset instruction clock
+    cSignalPair.InitSignalPairs = function() {
+        new cSignalPair('AD=PC','PC.WA','AD.RA');   //  Load address register from program counter
+        new cSignalPair('AD=ML','ML.WA','AD.RA');   //  Load address register from memory latch
+        new cSignalPair('AD=SP','SP.WA','AD.RA');   //  Load address register from stack pointer
+        new cSignalPair('ML=MM','MM.WD','ML.RD');   //  Load memory latch from memory address AD
+        new cSignalPair('IR=MM','MM.WD','IR.RD');   //  Load instruction register from memory address AD
+        new cSignalPair('PC++' ,'PC.++'        );   //  Increment program counter
+        new cSignalPair('PC=MM','MM.WD','PC.RD');   //  Load program counter from memory address AD
+        new cSignalPair('PC=ML','ML.WD','PC.RD');   //  Load program counter from memory latch
+        new cSignalPair('PC=AL','AL.WU','PC.RU');   //  Load program counter from ALU
+        new cSignalPair('SP=AL','AL.WU','SP.RU');   //  Load stack pointer from ALU
+        new cSignalPair('SP=AC','AC.WD','SP.RD');   //  Load stack pointer from accumulator
+        new cSignalPair('OA=AC','AC.WD','OA.RD');   //  Load operand A from accumulator
+        new cSignalPair('OA=PC','PC.WD','OA.RD');   //  Load operand A from program counter
+        new cSignalPair('OA=SP','SP.WD','OA.RD');   //  Load operand A from stack pointer
+        new cSignalPair('OB=MM','MM.WD','OB.RD');   //  Load operand B from memory address AD  or  Load with 1
+        new cSignalPair('OB=ML','ML.WD','OB.RD');   //  Load operand B from memory latch  or  Load with 1
+        new cSignalPair('OB'           ,'OB.RD');   //  Load operand B from data bus  or  Load with 1
+        new cSignalPair('OC'           ,'OC.RD');   //  Load operand C from carry flag  or  with 0  or  with 1
+        new cSignalPair('AC=MM','MM.WD','AC.RD');   //  Load accumulator from memory address AD
+        new cSignalPair('AC=ML','ML.WD','AC.RD');   //  Load accumulator from memory latch
+        new cSignalPair('AC=SP','SP.WD','AC.RD');   //  Load accumulator from stack pointer
+        new cSignalPair('AC=AL','AL.WU','AC.RU');   //  Load accumulator from ALU
+        new cSignalPair('AC=SH','SH.WU','AC.RU');   //  Load accumulator from shift register
+        new cSignalPair('MM=AC','AC.WD','MM.RD');   //  Load memory address AD from accumulator     (write to memory)
+        new cSignalPair('MM=PC','PC.WD','MM.RD');   //  Load memory address AD from program counter (write to memory)
+        new cSignalPair('MM=FL','FL.WD','MM.RD');   //  Load memory address AD from flags           (write to memory)
+        new cSignalPair('FL=MM','MM.WD','FL.RD');   //  Load flags from memory address AD
+        new cSignalPair('FL=SH'        ,'FL.SH');   //  Load N   C Z flags from ALU
+        new cSignalPair('FL=AL'        ,'FL.AL');   //  Load N V C Z flags from ALU
+        new cSignalPair('FL=NZ'        ,'FL.NZ');   //  Load N     Z flags from ALU
+        new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
+        new cSignalPair('CY=i1'        ,'FL.CY');   //  Read Carry from instruction bit 1
+        new cSignalPair('IC.RS'        ,'IC.RS');   //  Reset instruction clock
+        new cSignalPair('IC.CR'        ,'IC.CR');   //  Conditional reset instruction clock
+    }
 }
 {// class gCycleSignalSet
-    function cSignalSet(pSetName, pSignalPairs) {
+    function cCycle(pSetName, pSignalPairs) {
         var SetName;
         var SignalPairIDs;
         var Signals;
         this.SetName = pSetName;
         this.SignalPairIDs = (pSignalPairs == undefined) ? [] : pSignalPairs.split(",");
         this.InitSignals();
-        gSignalSets[this.SetName] = this;
+        gCycles[this.SetName] = this;
     }
-    cSignalSet.prototype.SignalPairs = function() {
+    cCycle.prototype.SignalPairs = function() {
         var lPairs = [];
         for (var i = 0; i < this.SignalPairIDs.length; i++) {
             lPairs.push(gSignalPairs[this.SignalPairIDs[i]]);
         }
         return lPairs;
     }
-    cSignalSet.prototype.InitSignals = function() {
+    cCycle.prototype.InitSignals = function() {
         var lPairs;
         var lFromName;
         var lToName;
@@ -153,44 +174,49 @@ function InitSignalPairs() {
             if (lToName != undefined) this.Signals.push(gSignals[lToName]);
         }
     }
-}
-function InitCycles() {
-    if (gSignalPairs.length == 0) InitSignalPairs();
-    new cSignalSet('IR=(PC)'  ,'AD=PC,IR=MM'                );  //  Read instruction register from memory location PC
-    new cSignalSet('PC++'     ,'PC++'                       );  //  Increment program counter
-    new cSignalSet('PC=ML'    ,'PC=ML'                      );  //  Jump to location ML
-    new cSignalSet('PC=AL'    ,'PC=AL'                      );  //  Jump to location calculated by ALU for branch
-    new cSignalSet('PC=(SP)'  ,'AD=SP,PC=MM'                );  //  Read program counter from memory location SP
-    new cSignalSet('AD=ML'    ,'AD=ML'                      );  //  Prepare save to memory location ML
-    new cSignalSet('AD=SP'    ,'AD=SP'                      );  //  Prepare save to memory location SP
-    new cSignalSet('ML=(PC)'  ,'AD=PC,ML=MM'                );  //  Read memory latch from memory location PC
-    new cSignalSet('AL=AC±1'  ,'OA=AC,OB,OC'                );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
-    new cSignalSet('LDA #'    ,      'AC=ML,FL=DB,PC++'     );  //  Load accumulator from memory latch and set N- and Z-flag, PC++
-    new cSignalSet('LDA nn'   ,'AD=ML,AC=MM,FL=DB,PC++'     );  //  Load accumulator from memory location ML and set N,Z-flags, PC++
-    new cSignalSet('AC=AL'    ,'AC=AL,FL=AL'                );  //  Store calculation result in accumulator and set V,N,C,Z-flags
-    new cSignalSet('AC=SH'    ,'AC=SH,FL=SH'                );  //  Store shift result in accumulator and set N,C,Z-flags
-    new cSignalSet('FL=(SP)'  ,'AD=SP,FL=MM'                );  //  Load flags from stack (memory address SP)
-    new cSignalSet('FL=A±ML'  ,      'OB=ML,OC,FL=AL'       );  //  Compare ML with accumulator
-    new cSignalSet('FL=A±(ML)','AD=ML,OB=MM,OC,FL=AL'       );  //  Compare (ML) with accumulator
-    new cSignalSet('AC=A±ML'  ,      'OB=ML,OC,AC=AL,FL=AL' );  //  Add ML to or Subtract ML from accumulator
-    new cSignalSet('AC=A±(ML)','AD=ML,OB=MM,OC,AC=AL,FL=AL' );  //  Add (ML) to or Subtract (ML) from accumulator
-    new cSignalSet('AC=A·(ML)','AD=ML,OB=MM,OC,AC=AL,FL=NZ' );  //  Logical operation between (ML) and accumulator
-    new cSignalSet('AC=A·ML'  ,      'OB=ML,OC,AC=AL,FL=NZ' );  //  Logical operation between ML and accumulator
-    new cSignalSet('AC=(SP)'  ,'AD=SP,AC=MM,FL=DB'          );  //  Load accumulator from memory location SP
-    new cSignalSet('AC=SP'    ,'AC=SP,FL=DB'                );  //  Load accumulator from stack pointer
-    new cSignalSet('(AD)=AC'  ,'MM=AC,FL=DB'                );  //  Store accumulator in memory location AD
-    new cSignalSet('(AD)=FL'  ,'MM=FL'                      );  //  Store flags in memory location AD (PHP)
-    new cSignalSet('(AD)=PC'  ,'MM=PC'                      );  //  Store PC in memory location AD (JSR)
-    new cSignalSet('AL=SP±1'  ,'OA=SP,OB,OC'                );  //  Calculate stack pointer ± 1
-    new cSignalSet('A=AC'     ,'OA=AC,OC'                   );  //  Calculate AC + C from instruction
-    new cSignalSet('A=PC'     ,'OA=PC,OC'                   );  //  Calculate PC + C from instruction
-    new cSignalSet('SH=C<AC>C','OA=AC,OC'                   );  //  Shift accumulator from instruction
-    new cSignalSet('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
-    new cSignalSet('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
-    new cSignalSet('SP=AC'    ,'SP=AC,FL=DB'                );  //  Load stack pointer from accumulator
-    new cSignalSet('BRA-3'    ,'AD=PC,OB=ML,OC,PC++,IC.CR'  );  //  B=ML, PC++
-    new cSignalSet('JSR-3'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
-    new cSignalSet('NOP'      ,undefined                    );  //  No operation
+    //  Class methods
+    cCycle.GetCycle = function(pSetName) {
+        try        { return gCycles[pSetName]; }
+        catch(err) { console.log('Cycle ID[\'' + SetID + '\'] not found. '); }
+    }
+    cCycle.InitCycles = function() {
+        if (gSignalPairs.length == 0) cSignalPair.InitSignalPairs();
+        new cCycle('IR=(PC)'  ,'AD=PC,IR=MM'                );  //  Read instruction register from memory location PC
+        new cCycle('PC++'     ,'PC++'                       );  //  Increment program counter
+        new cCycle('PC=ML'    ,'PC=ML'                      );  //  Jump to location ML
+        new cCycle('PC=AL'    ,'PC=AL'                      );  //  Jump to location calculated by ALU for branch
+        new cCycle('PC=(SP)'  ,'AD=SP,PC=MM'                );  //  Read program counter from memory location SP
+        new cCycle('AD=ML'    ,'AD=ML'                      );  //  Prepare save to memory location ML
+        new cCycle('AD=SP'    ,'AD=SP'                      );  //  Prepare save to memory location SP
+        new cCycle('ML=(PC)'  ,'AD=PC,ML=MM'                );  //  Read memory latch from memory location PC
+        new cCycle('AL=AC±1'  ,'OA=AC,OB,OC'                );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
+        new cCycle('LDA #'    ,      'AC=ML,FL=DB,PC++'     );  //  Load accumulator from memory latch and set N- and Z-flag, PC++
+        new cCycle('LDA nn'   ,'AD=ML,AC=MM,FL=DB,PC++'     );  //  Load accumulator from memory location ML and set N,Z-flags, PC++
+        new cCycle('AC=AL'    ,'AC=AL,FL=AL'                );  //  Store calculation result in accumulator and set V,N,C,Z-flags
+        new cCycle('AC=SH'    ,'AC=SH,FL=SH'                );  //  Store shift result in accumulator and set N,C,Z-flags
+        new cCycle('FL=(SP)'  ,'AD=SP,FL=MM'                );  //  Load flags from stack (memory address SP)
+        new cCycle('FL=A±ML'  ,      'OB=ML,OC,FL=AL'       );  //  Compare ML with accumulator
+        new cCycle('FL=A±(ML)','AD=ML,OB=MM,OC,FL=AL'       );  //  Compare (ML) with accumulator
+        new cCycle('AC=A±ML'  ,      'OB=ML,OC,AC=AL,FL=AL' );  //  Add ML to or Subtract ML from accumulator
+        new cCycle('AC=A±(ML)','AD=ML,OB=MM,OC,AC=AL,FL=AL' );  //  Add (ML) to or Subtract (ML) from accumulator
+        new cCycle('AC=A·(ML)','AD=ML,OB=MM,OC,AC=AL,FL=NZ' );  //  Logical operation between (ML) and accumulator
+        new cCycle('AC=A·ML'  ,      'OB=ML,OC,AC=AL,FL=NZ' );  //  Logical operation between ML and accumulator
+        new cCycle('AC=(SP)'  ,'AD=SP,AC=MM,FL=DB'          );  //  Load accumulator from memory location SP
+        new cCycle('AC=SP'    ,'AC=SP,FL=DB'                );  //  Load accumulator from stack pointer
+        new cCycle('(AD)=AC'  ,'MM=AC,FL=DB'                );  //  Store accumulator in memory location AD
+        new cCycle('(AD)=FL'  ,'MM=FL'                      );  //  Store flags in memory location AD (PHP)
+        new cCycle('(AD)=PC'  ,'MM=PC'                      );  //  Store PC in memory location AD (JSR)
+        new cCycle('AL=SP±1'  ,'OA=SP,OB,OC'                );  //  Calculate stack pointer ± 1
+        new cCycle('A=AC'     ,'OA=AC,OC'                   );  //  Calculate AC + C from instruction
+        new cCycle('A=PC'     ,'OA=PC,OC'                   );  //  Calculate PC + C from instruction
+        new cCycle('SH=C<AC>C','OA=AC,OC'                   );  //  Shift accumulator from instruction
+        new cCycle('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
+        new cCycle('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
+        new cCycle('SP=AC'    ,'SP=AC,FL=DB'                );  //  Load stack pointer from accumulator
+        new cCycle('BRA-3'    ,'AD=PC,OB=ML,OC,PC++,IC.CR'  );  //  B=ML, PC++
+        new cCycle('JSR-3'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
+        new cCycle('NOP'      ,undefined                    );  //  No operation
+    }
 }
 {// class cInstruction
     function cInstruction(pOpcode, pMnemonic, pSignalSetIDstring) {
@@ -198,7 +224,7 @@ function InitCycles() {
         var CT;
         var Operation;
         var Mnemonic;
-        var SignalSets;
+        var Cycles;
         var SignalPairs;
         var Value;
         var lOpcode = pOpcode.split(",");
@@ -206,44 +232,42 @@ function InitCycles() {
         this.CT           = lOpcode[1];
         this.Operation    = lOpcode[2];
         this.Mnemonic     = pMnemonic;
-        this.InitSignalSets(pSignalSetIDstring);
-        this.InitSignalPairs();
+        this.Cycles       = this.GetCycles(pSignalSetIDstring);
+        this.SignalPairs  = this.GetSignalPairs();
         this.Value = parseInt(lOpcode.join(''),2);
         gInstructions[this.Value] = this;
     }
-    cInstruction.prototype.InitSignalSets = function(pSignalSetIDstring) {
+    cInstruction.prototype.NumberOfCycles = function() { return this.Cycles.length; }
+    cInstruction.prototype.GetCycles = function(pSignalSetIDstring) {
+        var lMnemonic = this.Mnemonic;
         var lSetIDs = [];
+        var lCycles = [];
         var lIDstring = 'IR=(PC),PC++';
         if (pSignalSetIDstring != '') lIDstring += ',' + pSignalSetIDstring;
-        lSetIDs = lSetIDs.split(',');
-        this.SignalSets = []
-        Object.keys(lSetIDs).forEach( function(key) {
-            try {
-                this.SignalSets.push(gSignalSets[key]);
-            }
-            catch(err) {
-                console.log('SignalSet ID[\'' + key + '\'] not found. ');
-            }
+        lSetIDs = lIDstring.split(',');
+        lSetIDs.forEach( function(SetID) {
+            try        { lCycles.push(cCycle.GetCycle(SetID)); }
+            catch(err) { console.log('Error adding cycle ID[\'' + SetID + '\'] to instruction ' + lMnemonic); }
         });
+        return lCycles;
     }
-    cInstruction.prototype.InitSignalPairs = function() {
-        var iCycle = 0;
-        this.SignalPairs  = [];
-        for (var i = 0; i < this.SignalSets.length; i++) {
-            this.SignalPairs.push(this.SignalSet[i].SignalPairs());
-            if (i == this.SignalSetIDs.length - 1)
-                this.SignalPairs[iCycle].push(gSignalPairs['IC.RS']);
-            iCycle++;
+    cInstruction.prototype.GetSignalPairs = function() {
+        lSignalPairs  = [];
+        for (var i = 0; i < this.Cycles.length; i++) {
+            lSignalPairs.push(this.Cycles[i].SignalPairs());
+            if (i + 1 == this.Cycles.length)
+                lSignalPairs.push(gSignalPairs['IC.RS']);
         }
+        return lSignalPairs;
     }
-    cInstruction.prototype.SetName = function(pCycle) {
-        return (pCycle < this.SignalSetIDs.length) ? this.SignalSet[pCycle].Name : '---';
+    cInstruction.prototype.SetName = function(iCycle) {
+        return (iCycle < this.Cycles.length) ? this.SignalSet(iCycle).SetName : '---';
     }
-    cInstruction.prototype.SignalSet = function(pCycle) {
-        return (pCycle < this.SignalSetIDs.length) ? this.SignalSet[pCycle] : [];
+    cInstruction.prototype.SignalSet = function(iCycle) {
+        return (iCycle < this.Cycles.length) ? this.Cycles[iCycle] : [];
     }
     cInstruction.InitInstructions = function() {
-        if (gSignalSets.length == 0) InitCycles();
+        if (gCycles.length == 0) cCycle.InitCycles();
         new cInstruction('00,00,0001','INA'   ,'AL=AC±1,AC=AL');
         new cInstruction('00,00,0011','DEA'   ,'AL=AC±1,AC=AL');
         new cInstruction('00,00,0100','ROL'   ,'SH=C<AC>C,AC=SH');      //  SH =    AC<CY
@@ -580,20 +604,33 @@ function Init65MINE01() {
 }
 {// class cCK
     function cCK() {
-        cUnit.call(this,'CK',20,132,['p0','p1']);
+        cUnit.call(this,'CK',20,132,[],['p0','p1']);
+        this.Wires = [1,0,0,0,0];
         gUnits['CK'] = this;
     }
+    cCK.Tick = function() { gUnits['CK'].Tick(); }
     cCK.prototype = Object.create(cUnit.prototype);
+    cCK.prototype.SetPhi0 = function() {
+        //  p0 = not (not 1 or not 2 or not 3)
+        var lLevels = [];
+        for (i = 0; i < 2; i++) lLevels[i] = cLogic.NOT(this.Wires[i+1]);
+        lNOTp0 = cLogic.OR(lLevels);
+        return cLogic.NOT(lNOTp0);
+    }
+    cCK.prototype.SetPhi1 = function() {
+        //  p1 = not (1 or 2 or 3)
+        var lLevels = [];
+        for (i = 0; i < 2; i++) lLevels[i] = this.Wires[i+1];
+        lNOTp0 = cLogic.OR(lLevels);
+        return cLogic.NOT(lNOTp0);
+    }
     cCK.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('CK',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RA' :                       this.Value = gBusses['AB'].Value; break;
-                }
-            }
+        for (i = 0; i < 4; i++) {
+            this.Wires[4-i] = this.Wires[3-i];
         }
+        this.Wires[0] = cLogic.NOT(this.Wires[4]);
+        cSignal.GetSignal(this.Naam, 'p0').SetLevel(this.SetPhi0());
+        cSignal.GetSignal(this.Naam, 'p1').SetLevel(this.SetPhi1());
     }
 }
 {// class cIC
@@ -613,7 +650,7 @@ function Init65MINE01() {
         this.RunStateButtons();
         cIC.Cycle = pCycle;
         cPLA.SetName = 'IR=(PC)';
-        cPLA.SignalPairs = gSignalSets[cPLA.SetName].SignalPairs();
+        cPLA.SignalPairs = gCycles[cPLA.SetName].SignalPairs();
     }
     cIC.prototype.ConditionalResetIC = function() {
         var lIR = gUnits['IR'];
@@ -650,32 +687,16 @@ function Init65MINE01() {
         cUnit.prototype.Draw.call(this);
     }
     cIC.prototype.CycleNext = function() {
+        lIR = gUnits['IR'];
         Object.keys(gSignals).forEach(function(ID) { gSignals[ID].Level = 0; });
         cPLA.SetIndex = 0;
         cIC.Cycle++;
         if (cIC.Cycle > 7) cIC.Cycle = 0;
         if (cIC.Cycle > 1)
-            if (cIC.Cycle >= 2 + gInstructions[gUnits['IR'].Value].SignalSetIDs.length) cIC.Cycle = 0;
-        switch (cIC.Cycle) {
-            case 0: cPLA.SetName = 'IR=(PC)';                         break;
-            case 1: cPLA.SetName = 'PC++';                            break;
-            case 2: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
-            case 3: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
-            case 4: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
-            case 5: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
-            case 6: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
-            case 7: cPLA.SetName = gUnits['IR'].SetName(cIC.Cycle);   break;
-        }
-        switch (cIC.Cycle) {
-            case 0: cPLA.SignalPairs = gSignalSets['IR=(PC)'].SignalPairs(); break;
-            case 1: cPLA.SignalPairs = gSignalSets['PC++'   ].SignalPairs(); break;
-            default:cPLA.SignalPairs = gUnits['IR'].SignalPairs(cIC.Cycle);  break;
-        }
-        switch (cIC.Cycle) {
-            case 0: cPLA.Signals = gSignalSets['IR=(PC)'].Signals; break;
-            case 1: cPLA.Signals = gSignalSets['PC++'   ].Signals; break;
-            default:cPLA.Signals = gUnits['IR'].Signals(cIC.Cycle);  break;
-        }
+            if (cIC.Cycle >= lIR.Instruction().NumberOfCycles()) cIC.Cycle = 0;
+        cPLA.SetName     = lIR.SetName(cIC.Cycle);
+        cPLA.SignalPairs = lIR.SignalPairs(cIC.Cycle);
+        cPLA.Signals     = lIR.Signals(cIC.Cycle);
     }
     cIC.prototype.ShowSignalInfo = function (pPair) {
         var lMnemonic = gUnits['IR'].Mnemonic();
@@ -786,15 +807,12 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         gUnits['IR'] = this;
     }
     cIR.prototype = Object.create(cUnit.prototype);
-    cIR.prototype.Bit1     = function() { return this.Opcode().substr(7-1,1); }
-    cIR.prototype.Opcode   = function() { return toBin(this.Value); }
-    cIR.prototype.Mnemonic = function() {
-        try {
-            return gInstructions[this.Value].Mnemonic;
-        }
-        catch(err) {
-            alert('Fout ' + err + 'bij het opvragen van instructie ' + toString(this.Value));
-        }
+    cIR.prototype.Bit1        = function() { return this.Opcode().substr(7-1,1); }
+    cIR.prototype.Opcode      = function() { return toBin(this.Value); }
+    cIR.prototype.Mnemonic    = function() { return this.Instruction().Mnemonic; }
+    cIR.prototype.Instruction = function() {
+        try        { return gInstructions[this.Value]; }
+        catch(err) { alert('Fout ' + err + 'bij het opvragen van instructie ' + toString(this.Value)); }
     }
     cIR.prototype.ShowMnemonic = function() {
         lQueueLength = gMnemonicQueue.length;
@@ -810,9 +828,7 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         for (var i = 0; i < lQueueLength; i++)
             document.getElementById("instruction").innerHTML += gMnemonicQueue[i] + '<br />';
     }
-    cIR.prototype.SetName = function(pCycle) {
-        return gInstructions[this.Value].SetName(pCycle);
-    }
+    cIR.prototype.SetName = function(pCycle) { return this.Instruction().SetName(pCycle); }
     cIR.prototype.SignalSet = function(pCycle) {
         return gInstructions[this.Value].SignalSet(pCycle);
     }
@@ -1291,7 +1307,7 @@ function ProcessSignals() {
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
 }
 function HaltCPU() { clearInterval(fRunSignal); }
-function RunStates() { gUnits['IC'].NextState(); }
+function RunStates() { gUnits['IC'].NextState(); cCK.Tick(); }
 function RunSignals() {
     fRunSignal = setInterval(RunStates, 1000);
 }
