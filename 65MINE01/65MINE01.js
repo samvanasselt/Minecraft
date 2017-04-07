@@ -17,20 +17,6 @@ function toHex(pValue) {
     lHex = lHex.substr(lHex.length - 2);
     return lHex.toUpperCase();
 }
-function ResetCPU() {
-    gUnits['IC'].ResetIC();
-    var lResetSignals = [];
-    lResetSignals.push(['PC.RST'        ]);
-    lResetSignals.push(['PC.WA' ,'AD.RA']);
-    lResetSignals.push(['MM.WD' ,'PC.RD']);
-    lResetSignals.push([]);
-    for (var i = 0; i < lResetSignals.length; i++) {
-        gSignalIDs = lResetSignals[i];
-        ProcessSignals();
-    }
-    gUnits['IC'].ResetIC();
-    cPLA.SetIndex = 99;
-}
 {// class cLogic
     function cLogic() {}
     cLogic.NOT = function(pLevel)  { return 1 - pLevel; }
@@ -43,6 +29,15 @@ function ResetCPU() {
         lLevel = 0;
         pLevels.forEach( function(rLevel) { lLevel += rLevel; });
         return Math.min(1, lLevel);
+    }
+}
+{// class cInfoQueue
+    cInfoQueue = function() {}
+    cInfoQueue.ClearQueue = function() { cInfoQueue.Queue = []; }
+    cInfoQueue.AddInfo = function(pInfo) {
+        if (cInfoQueue.Queue.length >= 16) cInfoQueue.Queue.shift();
+        cInfoQueue.Queue.push(pInfo);
+        document.getElementById("instruction-info").innerHTML = cInfoQueue.Queue.join('<br />');
     }
 }
 {// class cSignal
@@ -63,7 +58,7 @@ function ResetCPU() {
     }
     cSignal.prototype.SetLevel = function(pLevel) { this.Level = Math.min(1,pLevel); }
     cSignal.prototype.ID   = function() { return this.UnitName + '.' +  this.SignalName; }
-    cSignal.prototype.Tick = function() { gUnits[this.UnitName].Tick(); }
+    cSignal.prototype.ProcessSignal = function() { gUnits[this.UnitName].Tick(this); }
 }
 function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName; }
 {// class cSignalPair
@@ -112,7 +107,8 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('AD=ML','ML.WA','AD.RA');   //  Load address register from memory latch
         new cSignalPair('AD=SP','SP.WA','AD.RA');   //  Load address register from stack pointer
         new cSignalPair('ML=MM','MM.WD','ML.RD');   //  Load memory latch from memory address AD
-        new cSignalPair('IR=MM','MM.WD','IR.RD');   //  Load instruction register from memory address AD
+        new cSignalPair('IF=MM','MM.WD','IF.RD');   //  Load instruction fetch from memory address AD
+        new cSignalPair('IR=IF','IF.WI','IR.RI');   //  Load instruction register from instruction fetch
         new cSignalPair('PC++' ,'PC.++'        );   //  Increment program counter
         new cSignalPair('PC=MM','MM.WD','PC.RD');   //  Load program counter from memory address AD
         new cSignalPair('PC=ML','ML.WD','PC.RD');   //  Load program counter from memory latch
@@ -181,7 +177,8 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     cCycle.InitCycles = function() {
         if (gSignalPairs.length == 0) cSignalPair.InitSignalPairs();
-        new cCycle('IR=(PC)'  ,'AD=PC,IR=MM'                );  //  Read instruction register from memory location PC
+        new cCycle('IF=(PC)'  ,'AD=PC,IF=MM'                );  //  Read instruction fetch from memory location PC
+        new cCycle('NEXT'     ,'PC++,IC.RS,IR=IF'           );  //  Increment program counter, reset instruction clock, fetch instruction
         new cCycle('PC++'     ,'PC++'                       );  //  Increment program counter
         new cCycle('PC=ML'    ,'PC=ML'                      );  //  Jump to location ML
         new cCycle('PC=AL'    ,'PC=AL'                      );  //  Jump to location calculated by ALU for branch
@@ -213,22 +210,15 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cCycle('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
         new cCycle('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
         new cCycle('SP=AC'    ,'SP=AC,FL=DB'                );  //  Load stack pointer from accumulator
-        new cCycle('BRA-3'    ,'AD=PC,OB=ML,OC,PC++,IC.CR'  );  //  B=ML, PC++
-        new cCycle('JSR-3'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
+        new cCycle('BRA-1'    ,'AD=PC,OB=ML,OC,PC++'        );  //  B=ML, PC++
+        new cCycle('JSR-1'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
         new cCycle('NOP'      ,undefined                    );  //  No operation
     }
 }
 {// class cInstruction
     function cInstruction(pOpcode, pMnemonic, pSignalSetIDstring) {
-        var AddressMode; // 00 = Implied, 01 = Immediate, 11 = Direct
-        var CT;
-        var Operation;
-        var Mnemonic;
-        var Cycles;
-        var SignalPairs;
-        var Value;
         var lOpcode = pOpcode.split(",");
-        this.AddressMode  = lOpcode[0];
+        this.AddressMode  = lOpcode[0]; // 00 = Implied, 01 = Immediate, 11 = Direct
         this.CT           = lOpcode[1];
         this.Operation    = lOpcode[2];
         this.Mnemonic     = pMnemonic;
@@ -236,35 +226,6 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         this.SignalPairs  = this.GetSignalPairs();
         this.Value = parseInt(lOpcode.join(''),2);
         gInstructions[this.Value] = this;
-    }
-    cInstruction.prototype.NumberOfCycles = function() { return this.Cycles.length; }
-    cInstruction.prototype.GetCycles = function(pSignalSetIDstring) {
-        var lMnemonic = this.Mnemonic;
-        var lSetIDs = [];
-        var lCycles = [];
-        var lIDstring = 'IR=(PC),PC++';
-        if (pSignalSetIDstring != '') lIDstring += ',' + pSignalSetIDstring;
-        lSetIDs = lIDstring.split(',');
-        lSetIDs.forEach( function(SetID) {
-            try        { lCycles.push(cCycle.GetCycle(SetID)); }
-            catch(err) { console.log('Error adding cycle ID[\'' + SetID + '\'] to instruction ' + lMnemonic); }
-        });
-        return lCycles;
-    }
-    cInstruction.prototype.GetSignalPairs = function() {
-        lSignalPairs  = [];
-        for (var i = 0; i < this.Cycles.length; i++) {
-            lSignalPairs.push(this.Cycles[i].SignalPairs());
-            if (i + 1 == this.Cycles.length)
-                lSignalPairs.push(gSignalPairs['IC.RS']);
-        }
-        return lSignalPairs;
-    }
-    cInstruction.prototype.SetName = function(iCycle) {
-        return (iCycle < this.Cycles.length) ? this.SignalSet(iCycle).SetName : '---';
-    }
-    cInstruction.prototype.SignalSet = function(iCycle) {
-        return (iCycle < this.Cycles.length) ? this.Cycles[iCycle] : [];
     }
     cInstruction.InitInstructions = function() {
         if (gCycles.length == 0) cCycle.InitCycles();
@@ -299,16 +260,60 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cInstruction('11,01,0000','LDA nn','ML=(PC),LDA nn');
         new cInstruction('11,01,0001','STA nn','ML=(PC),AD=ML,(AD)=AC,PC++');
         new cInstruction('11,01,0010','CMP nn','ML=(PC),A=AC,FL=A±(ML),PC++');
-        new cInstruction('11,10,1000','BCC nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1001','BCS nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1010','BEQ nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1011','BNE nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1100','BVC nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1101','BVS nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1110','BPL nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1111','BMI nn','ML=(PC),BRA-3,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1000','BCC nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1001','BCS nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1010','BEQ nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1011','BNE nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1100','BVC nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1101','BVS nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1110','BPL nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1111','BMI nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
         new cInstruction('11,11,0000','JMP nn','ML=(PC),PC=ML');
-        new cInstruction('11,11,0011','JSR nn','ML=(PC),JSR-3,SP=AL,AD=SP,(AD)=PC,PC=ML');
+        new cInstruction('11,11,0011','JSR nn','ML=(PC),JSR-1,SP=AL,AD=SP,(AD)=PC,PC=ML');
+    }
+    cInstruction.CycleList = function() {
+        Object.keys(gInstructions).forEach( function(insID) {
+            lInstruction = gInstructions[insID];
+            Object.keys(lInstruction.Cycles).forEach( function(iCycle) {
+                lCycle = lInstruction.Cycles[iCycle];
+                try {
+                    Object.keys(lCycle.Signals).forEach( function(iSignal) {
+                        lSignal = lCycle.Signals[iSignal];
+                        console.log(lInstruction.Opcode(), iCycle, lCycle.SetName, lSignal.ID());
+                    });
+                }
+                catch(err) { console.log(err, lInstruction.Opcode(), iCycle, lCycle.SetName); }
+            });
+        });
+    }
+    cInstruction.prototype.Opcode         = function() { return toBin(this.Value); }
+    cInstruction.prototype.NumberOfCycles = function() { return this.Cycles.length; }
+    cInstruction.prototype.GetCycles = function(pSignalSetIDstring) {
+        var lMnemonic = this.Mnemonic;
+        var lSetIDs = [];
+        var lCycles = [];
+        var lIDstring = (pSignalSetIDstring + ',IF=(PC),NEXT').replace(/^,/,"");
+        lSetIDs = lIDstring.split(',');
+        lSetIDs.forEach( function(SetID) {
+            try        { lCycles.push(cCycle.GetCycle(SetID)); }
+            catch(err) { console.log('Error adding cycle ID[\'' + SetID + '\'] to instruction ' + lMnemonic); }
+        });
+        return lCycles;
+    }
+    cInstruction.prototype.GetSignalPairs = function() {
+        lSignalPairs  = [];
+        for (var i = 0; i < this.Cycles.length; i++) {
+            lSignalPairs.push(this.Cycles[i].SignalPairs());
+            if (i + 1 == this.Cycles.length)
+                lSignalPairs.push(gSignalPairs['IC.RS']);
+        }
+        return lSignalPairs;
+    }
+    cInstruction.prototype.SetName = function(iCycle) {
+        return (iCycle < this.Cycles.length) ? this.SignalSet(iCycle).SetName : 'NOP';
+    }
+    cInstruction.prototype.SignalSet = function(iCycle) {
+        return (iCycle < this.Cycles.length) ? this.Cycles[iCycle] : [];
     }
 }
 function InitCPUcanvas() {
@@ -330,9 +335,9 @@ function Init65MINE01() {
     cUnit.InitUnits();
     cBus.InitBusses();
     cInstruction.InitInstructions();
+    CPU.Reset();
     Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
-    ResetCPU();
 }
 {// class cBox
     function cBox(pX,pY,pW,pH) {
@@ -421,6 +426,33 @@ function Init65MINE01() {
         for (var i = 0; i < this.Inputs.length ; i++) { new cSignal(this.Naam, this.Inputs[i] ); }
         for (var i = 0; i < this.Outputs.length; i++) { new cSignal(this.Naam, this.Outputs[i]); }
     }
+    cUnit.InitUnits = function() {
+        CPU.MM = new cMM(720, 30);
+        CPU.ML = new cML(280,100);
+        CPU.CK = new cCK( 20,332);
+        CPU.IC = new cIC( 20,400);
+        CPU.IF = new cIF(20,30);
+        CPU.IR = new cIR( 20,180);
+        CPU.FL = new cFL( 20,480);
+        CPU.PC = new cPC(280,170);
+        CPU.SP = new cSP(280,250);
+        CPU.OC = new cOC(280,320+40+24);
+        CPU.OB = new cOB(280,320);
+        CPU.OA = new cOA(280,320+40+24+40+24);
+        CPU.AL = new cAL(384,320+20);
+        CPU.SH = new cSH(384,320+40+24+40);
+        CPU.AC = new cAC(280,520);
+        CPU.AD = new cAD(720,120);
+    }
+    cUnit.DrawUnits = function() { Object.keys(gUnits).forEach( function(ID) { gUnits[ID].Draw(); }); }
+    cUnit.prototype.Address = function() { return this.Value; } // For AD, PC, SP
+    cUnit.prototype.Tick = function() {
+        var lSignal;
+        for (var i = 0; i < this.Inputs.length; i++) {
+            lSignal = cSignal.GetSignal( this.Naam, this.Inputs[i]);
+            if (lSignal.Level == 1) this.ProcessInput(lSignal);
+        }
+    }
     cUnit.prototype.IsActive = function() {
         var lSignalID;
         var lIsActive = false;
@@ -508,23 +540,6 @@ function Init65MINE01() {
         var lOutputBox = this.DrawOutputs(lInputBox);
         this.UnitBox.DrawBox(this.Value, this.IsActive());
     }
-    cUnit.InitUnits =function() {
-        new cMM(720, 30);
-        new cML(280,100);
-        new cIC( 20,200);
-        new cCK( 20,132);
-        new cIR( 20, 30);
-        new cFL( 20,480);
-        new cPC(280,240);
-        new cSP(280,170);
-        new cOC(280,320+40+24);
-        new cOB(280,320);
-        new cOA(280,320+40+24+40+24);
-        new cAL(384,320+20);
-        new cSH(384,320+40+24+40);
-        new cAC(280,520);
-        new cAD(720,120);
-    }
 }
 {// class cBusBox
     function cBusBox(pNaam) {
@@ -571,6 +586,16 @@ function Init65MINE01() {
         this.BusBox.SetXYh( pX+14, pY+40, pH-40);
         this.Active = false;
     }
+    cBus.InitBusses = function() {
+        gBusses['AB'] = new cBus('AB', 620-14, 74, 210);
+        gBusses['DB'] = new cBus('DB', 160-14,  4, 580);
+        gBusses['IB'] = new cBus('IB',     20,100,  80);
+        gBusses['UB'] = new cBus('UB', 510-14,140, 444);
+    }
+    cBus.DrawBusses = function() { Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); }); }
+    AB = function() { return gBusses['AB']; }
+    DB = function() { return gBusses['DB']; }
+    UB = function() { return gBusses['UB']; }
     cBus.prototype.Draw = function() {
         this.BusBox.DrawBox(this.Value, this.Active);
         this.UnitBox.DrawBox(this.Value, this.Active);
@@ -583,35 +608,81 @@ function Init65MINE01() {
         if (!this.Zflag) lFlags |=   1;
         return lFlags;
     }
-    cBus.InitBusses = function() {
-        gBusses['DB'] = new cBus('DB', 160-14,  4, 580); // gBusses['DB'].BusBox.SetXYh(160, 4+40, 580-40);
-        gBusses['UB'] = new cBus('UB', 510-14,210, 374); // gBusses['UB'].BusBox.SetXYh(520,110+40, 560-110+24-40);
-        gBusses['AB'] = new cBus('AB', 620-14, 74, 210); // gBusses['AB'].BusBox.SetXYh(620, 24+40, 260-40);
-    }
+    cBus.prototype.WriteToBus  = function(pValue) { this.Active = true;        this.Value = pValue; }
+    cBus.prototype.ReadFromBus = function()       { this.Active = true; return this.Value;          }
 }
 //  ==========================================================================  //
 {
-    function cPLA() {
-
+    PLA = function() {}
+    PLA.Prepare = function() {
+        var iCycle;
+        var lSetName;
+        if (cSignal.GetSignal('CK', 'p1').Level == 1 && PLA.PREP.Level < 1) {
+            PLA.PREP.Level = 1;
+            PLA.AllSignals(0);
+            iCycle = CPU.IC.Cycle();
+            PLA.Cycle = CPU.IR.Cycle(iCycle);
+            // lSetName = IR.Instruction().SetName(CPU.IC.Cycle());
+            // PLA.Cycle = cCycle.GetCycle(lSetName);
+            // PLA.Cycle = IR.Cycle(CPU.IC.Cycle());
+            PLA.AllSignals(1);
+            PLA.ShowSignalInfo();
+        }
+        if (cSignal.GetSignal('CK', 'p2').Level == 1) { PLA.PREP.Level = 0; }
+    }
+    PLA.SetSignal = function(iSignal, pLevel) { PLA.Cycle.Signals[iSignal].SetLevel(pLevel); }
+    PLA.AllSignals = function(pLevel) {
+        try {
+            for (var i = 0; i < PLA.Cycle.Signals.length; i++)
+                PLA.Cycle.Signals[i].SetLevel(pLevel);
+        }
+        catch(err) {}
+    }
+    PLA.ShowSignalInfo = function() {
+        var lMnemonic = gUnits['IR'].Mnemonic();
+        var lCycle    = 'T' + CPU.IC.Cycle();
+        var lSignals = [];
+        try { for (var i = 0; i < PLA.Cycle.Signals.length; i++)
+                lSignals.push(PLA.Cycle.Signals[i].ID());
+        }
+        catch(err) {}
+        var lInfo = [lMnemonic,lCycle,lSignals.join(', ')].join(' ');
+        cInfoQueue.AddInfo(lInfo);
+    }
+    PLA.Tick = function() {
+        if (PLA.Cycle != undefined) {
+            for (var i = 0; i < PLA.Cycle.Signals.length; i++)
+                PLA.Cycle.Signals[i].ProcessSignal();
+            gUnits['AL'].Tick();
+            gUnits['SH'].Tick();
+        }
     }
 }
 {// class cCK
+    // http://lateblt.livejournal.com/88105.html
+    CK = function() {}
+    CK.Tick = function() { gUnits['CK'].Tick(); }
     function cCK(pX,pY) {
-        cUnit.call(this,'CK',pX,pY,[],['p0','p1']);
+        cUnit.call(this,'CK',pX,pY,[],['p1','p2']);
         this.Wires = [1,0,0,0,0];
         gUnits['CK'] = this;
     }
-    cCK.Tick = function() { gUnits['CK'].Tick(); }
     cCK.prototype = Object.create(cUnit.prototype);
-    cCK.prototype.SetPhi0 = function() {
-        //  p0 = not (not 1 or not 2 or not 3)
+    cCK.prototype.SetValue = function() {
+        var lPower2 = 1;
+        var lValue = 0;
+        this.Wires.forEach( function(Level) { lValue += lPower2 * Level; lPower2 *= 2; });
+        this.Value = lValue;
+    }
+    cCK.prototype.Phi1 = function() {
+        //  p1 = not (not 1 or not 2 or not 3)
         var lLevels = [];
         for (i = 0; i < 2; i++) lLevels[i] = cLogic.NOT(this.Wires[i+1]);
         lNOTp0 = cLogic.OR(lLevels);
         return cLogic.NOT(lNOTp0);
     }
-    cCK.prototype.SetPhi1 = function() {
-        //  p1 = not (1 or 2 or 3)
+    cCK.prototype.Phi2 = function() {
+        //  p2 = not (1 or 2 or 3)
         var lLevels = [];
         for (i = 0; i < 2; i++) lLevels[i] = this.Wires[i+1];
         lNOTp0 = cLogic.OR(lLevels);
@@ -622,28 +693,47 @@ function Init65MINE01() {
             this.Wires[4-i] = this.Wires[3-i];
         }
         this.Wires[0] = cLogic.NOT(this.Wires[4]);
-        cSignal.GetSignal(this.Naam, 'p0').SetLevel(this.SetPhi0());
-        cSignal.GetSignal(this.Naam, 'p1').SetLevel(this.SetPhi1());
+        // cSignal.GetSignal(this.Naam, 'p1').SetLevel(this.Phi1());
+        // cSignal.GetSignal(this.Naam, 'p2').SetLevel(this.Phi2());
+        var lPhi1 = this.Phi1();
+        var lPhi2 = this.Phi2();
+        var lUnitsToSet;
+        lUnitsToSet = 'IC,PC'.split(',');
+        lUnitsToSet.push(this.Naam);
+        lUnitsToSet.forEach( function(UnitID) {
+            cSignal.GetSignal(UnitID, 'p1').SetLevel(lPhi1);
+            cSignal.GetSignal(UnitID, 'p2').SetLevel(lPhi2);
+        });
+        // cSignal.GetSignal('IC', 'p1').SetLevel(this.Phi1());
+        // cSignal.GetSignal('IC', 'p2').SetLevel(this.Phi2());
+        this.SetValue();
     }
 }
 {// class cIC
     function cIC(pX,pY) {
-        var RunState = false;
-        var InfoQueue;
-        this.InfoQueue = [];
-        cUnit.call(this,'IC',pX,pY,['p0','p1','RS','CR'],['t0','t1','t2','t3','t4','t5','t6','t7']);
+        cUnit.call(this,'IC',pX,pY,['p1','p2','RS','CR'],['t0','t1','t2','t3','t4','t5','t6','t7']);
         gUnits['IC'] = this;
     }
     cIC.prototype = Object.create(cUnit.prototype);
-    cIC.prototype.SetValue = function() {
-        this.Value = 16 * cIC.Cycle + cPLA.SetIndex;
+    cIC.prototype.Reset = function() {
+        CPU.IC.CurrentCycle = -1;
+        this.Cycles = [1,0,0,0,0,0,0,0];
+        this.Buffer = [0,0,0,0,0,0,0,0];
+        this.SetValue();
     }
-    cIC.prototype.ResetIC = function(pCycle = 7) {
-        this.RunState = false;
-        this.RunStateButtons();
-        cIC.Cycle = pCycle;
-        cPLA.SetName = 'IR=(PC)';
-        cPLA.SignalPairs = gCycles[cPLA.SetName].SignalPairs();
+    cIC.prototype.Cycle = function() {
+        for (var i=0; i < this.Cycles.length; i++)
+            if (this.Cycles[i] == 1) return i;
+    }
+    cIC.prototype.SetValue = function() {
+        var lPower2 = 1;
+        var lValue = 0;
+        this.Cycles.forEach( function(Level) { lValue += lPower2 * Level; lPower2 *= 2; });
+        this.Value = lValue;
+        for (i = 0; i < this.Cycles.length; i++)
+            cSignal.GetSignal(this.Naam, 't' + i).SetLevel(this.Cycles[i]);
+        CPU.IC.CycleChanged = !(CPU.IC.CurrentCycle == this.Cycle());
+        CPU.IC.CurrentCycle = this.Cycle();
     }
     cIC.prototype.ConditionalResetIC = function() {
         var lIR = gUnits['IR'];
@@ -661,141 +751,69 @@ function Init65MINE01() {
             case 'BMI nn' : lBranch =  lFL.Flag('N'); break;
             default: alert('Unexpected conditional reset found for instruction ' + lIns.Mnemonic); break;
         }
-        if (!lBranch) this.ResetIC();   //  If branch is not taken, get next instruction
+        if (!lBranch) this.Reset();   //  If branch is not taken, get next instruction
     }
-    cIC.prototype.RunStateButtons = function() {
-        if (this.RunState) {
-            document.getElementById("button-next-pair").style.display = "none";
-            document.getElementById("button-process-pair").style.visibility = "visible";
-        } else {
-            document.getElementById("button-next-pair").style.display = "inline";
-            document.getElementById("button-process-pair").style.visibility = "hidden";
-        }
-    }
-    cIC.prototype.ClearRunState = function() { this.RunState = false; this.RunStateButtons(); }
-    cIC.prototype.SetRunState   = function() { this.RunState = true;  this.RunStateButtons(); }
-    cIC.prototype.CycleShow = function() {
+    cIC.prototype.Show = function() {
         for (var i = 0; i < this.Outputs.length; i++)
-            gSignals[this.Naam + '.' + this.Outputs[i]].Level = (i == cIC.Cycle) ? 1 : 0;
+            gSignals[this.Naam + '.' + this.Outputs[i]].Level = this.Cycles[i];
+        this.SetValue();
         cUnit.prototype.Draw.call(this);
     }
-    cIC.prototype.CycleNext = function() {
-        lIR = gUnits['IR'];
-        Object.keys(gSignals).forEach(function(ID) { gSignals[ID].Level = 0; });
-        cPLA.SetIndex = 0;
-        cIC.Cycle++;
-        if (cIC.Cycle > 7) cIC.Cycle = 0;
-        if (cIC.Cycle > 1)
-            if (cIC.Cycle >= lIR.Instruction().NumberOfCycles()) cIC.Cycle = 0;
-        cPLA.SetName     = lIR.SetName(cIC.Cycle);
-        cPLA.SignalPairs = lIR.SignalPairs(cIC.Cycle);
-        cPLA.Signals     = lIR.Signals(cIC.Cycle);
-    }
-    cIC.prototype.ShowSignalInfo = function (pPair) {
-        var lMnemonic = gUnits['IR'].Mnemonic();
-        var lCycle    = 'T' + cIC.Cycle + ': ' + cPLA.SetName;
-        var lSignals  = pPair.PairName + ': ' + pPair.FromName;
-        if (pPair.ToName != undefined) lSignals += ' ' + pPair.ToName;
-        if (cIC.Cycle == 0) lMnemonic = '---';
-        var lInfo = [lMnemonic,lCycle,lSignals].join(' ');
-        lQueueLength = this.InfoQueue.length;
-        if (lQueueLength < 16) {
-            this.InfoQueue.push(lInfo);
-            lQueueLength++;
-        }
-        else
-            for (var i = 0; i < lQueueLength - 1; i++)
-                this.InfoQueue[i] = this.InfoQueue[i+1];
-            this.InfoQueue[lQueueLength - 1] = lInfo;
-        document.getElementById("instruction-info").innerHTML = '';
-        for (var i = 0; i < lQueueLength; i++)
-            document.getElementById("instruction-info").innerHTML += this.InfoQueue[i] + '<br />';
-    }
-    cIC.prototype.SignalShow = function() {
-        if (cPLA.SetIndex < cPLA.SignalPairs.length) {
-            var lPair = cPLA.SignalPairs[cPLA.SetIndex];
-            lPair.SetLevel(1);
-            lPair.SetActiveBus(true);
-            Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
-            Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
-            this.ShowSignalInfo(lPair);
-        }
-        this.SetValue();
-    }
-    cIC.prototype.SignalRun = function() {
-        if (cPLA.SetIndex < cPLA.SignalPairs.length) {
-            var lPair = cPLA.SignalPairs[cPLA.SetIndex];
-            lPair.Tick();
-            gUnits['AL'].Tick();
-            gUnits['SH'].Tick();
-            Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
-            Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
-            // lPair.SetLevel(0);
-            lPair.SetActiveBus(false);
-        }
-        this.ClearRunState();
-        this.SetValue();
-    }
-    cIC.prototype.SignalNext = function() {
-        cPLA.SetIndex++;
-        if (cPLA.SetIndex >= cPLA.SignalPairs.length) {
-            this.CycleNext();
-            this.CycleShow();
-        }
-        this.SetRunState();
-    }
-    cIC.prototype.NextState = function() {
-        if (this.RunState) {
-            this.SignalRun();
-        } else {
-            this.SignalNext();
-            this.SignalShow();
-        }
-        this.SetValue();
-    }
-    cIC.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('IC',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    // case 'p0' : break;
-                    // case 'p1' : break;
-                    case 'RS' : this.ResetIC(); break;
-                    case 'CR' : this.ConditionalResetIC(); break;
-                }
-            }
+    cIC.prototype.ProcessInput = function(pSignal) {
+        switch(pSignal.SignalName) {
+            case 'p1' : for (var i=1; i<9; i++) this.Buffer[i % 8] = this.Cycles[i-1]; this.SetValue(); break;
+            case 'p2' : for (var i=0; i<8; i++) this.Cycles[i]     = this.Buffer[i]  ; this.SetValue(); break;
+            case 'RS' : this.Reset(); break;
+            case 'CR' : this.ConditionalResetIC(); break;
         }
     }
 }
-function NextPair()    { gUnits['IC'].NextState(); }
-function ProcessPair() { gUnits['IC'].NextState(); }
 {// class cPC
     function cPC(pX,pY) {
-        cUnit.call(this,'PC',pX,pY,['RD','WD','RU','WA','++','RST']);
+        cUnit.call(this,'PC',pX,pY,['RD','WD','RU','WA','<+','++','p1','p2','RST']);
         gUnits['PC'] = this;
+        this.INC = new cSignal(this.Naam, '<+');
     }
     cPC.prototype = Object.create(cUnit.prototype);
-    cPC.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('PC',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RU' :                       this.Value = gBusses['UB'].Value;  break;
-                    case 'RD' :                       this.Value = gBusses['DB'].Value;  break;
-                    case 'WD' : gBusses['DB'].Value = this.Value;                        break;
-                    case 'WA' : gBusses['AB'].Value = this.Value;                        break;
-                    case 'RST': this.Value = 255;                                        break;
-                    case '++' : this.Value++;  this.Value %= 256;                        break;
-                }
-            }
+    cPC.prototype.Reset = function() { this.ProcessInput(cSignal.GetSignal(this.Naam, 'RST')); }
+    cPC.prototype.Increment = function() {
+        if (cSignal.GetSignal(this.Naam, 'p1').Level == 1 && this.INC.Level < 1) this.Value++;
+        this.Value %= 256
+        this.INC.SetLevel(1);
+    }
+    cPC.prototype.ProcessInput = function(pSignal) {
+        switch(pSignal.SignalName) {
+            case 'RU' :                       this.Value = gBusses['UB'].Value;  break;
+            case 'RD' :                       this.Value = gBusses['DB'].Value;  break;
+            case 'WD' : gBusses['DB'].Value = this.Value;                        break;
+            case 'WA' : gBusses['AB'].Value = this.Value;                        break;
+            case '++' :                       this.Increment();                  break;
+            case 'p1' :                                                          break;
+            case 'p2' :                       this.INC.SetLevel(0);              break;
+            case 'RST':                       this.Value = 255;                  break;
+        }
+    }
+}
+{// Instruction Fetch
+    function cIF(pX,pY) {
+        cUnit.call(this,'IF',pX,pY,['RD','WI']);
+        this.Value = parseInt('00010111',2);     //  NOP
+        gUnits[this.Naam] = this;
+    }
+    cIF.prototype = Object.create(cUnit.prototype);
+    cIF.prototype.ProcessInput = function(pSignal) {
+        switch(pSignal.SignalName) {
+            case 'RD' :                       this.Value = gBusses['DB'].Value;  break;
+            case 'WI' : gBusses['IB'].Value = this.Value;                        break;
         }
     }
 }
 {// class cIR
+    function IR() {}
+    IR.Reset = function() { gUnits['IR'].Value = parseInt('11110000',2); } // gInstructions['JMP nn'].Opcode()
+    IR.Instruction = function() { return gUnits['IR'].Instruction(); }
     function cIR(pX,pY) {
-        cUnit.call(this,'IR',pX,pY,['RD'],['f3','f2','f1','f0']);
+        cUnit.call(this,'IR',pX,pY,['RI'],['f3','f2','f1','f0']);
         this.Value = parseInt('00010111',2);     //  NOP
         gUnits['IR'] = this;
     }
@@ -806,6 +824,26 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     cIR.prototype.Instruction = function() {
         try        { return gInstructions[this.Value]; }
         catch(err) { alert('Fout ' + err + 'bij het opvragen van instructie ' + toString(this.Value)); }
+    }
+    cIR.prototype.Cycle = function(pCycle) {
+        var lSetName;
+        var iCycle = pCycle;
+        var lIns = this.Instruction();
+        if (iCycle > 1) {
+            switch (lIns.Mnemonic) {
+                case 'BEQ nn' : if ( CPU.FL.Flag('Z')) iCycle += 2; break; // Skip branch cycles if non-zero
+                case 'BNE nn' : if (!CPU.FL.Flag('Z')) iCycle += 2; break; // Skip branch cycles if     zero
+                case 'BCC nn' : if ( CPU.FL.Flag('C')) iCycle += 2; break; // Skip branch cycles if    carry
+                case 'BCS nn' : if (!CPU.FL.Flag('C')) iCycle += 2; break; // Skip branch cycles if no carry
+                case 'BVC nn' : if ( CPU.FL.Flag('V')) iCycle += 2; break; // Skip branch cycles if    overflow
+                case 'BVS nn' : if (!CPU.FL.Flag('V')) iCycle += 2; break; // Skip branch cycles if no overflow
+                case 'BPL nn' : if ( CPU.FL.Flag('N')) iCycle += 2; break; // Skip branch cycles if negative
+                case 'BMI nn' : if (!CPU.FL.Flag('N')) iCycle += 2; break; // Skip branch cycles if positive
+                default:                                            break; // Ignore for other instructions
+            }
+        }
+        lSetName = lIns.SetName(iCycle);
+        return cCycle.GetCycle(lSetName);
     }
     cIR.prototype.ShowMnemonic = function() {
         lQueueLength = gMnemonicQueue.length;
@@ -838,21 +876,15 @@ function ProcessPair() { gUnits['IC'].NextState(); }
             lValue = Math.floor(lValue / 2);
         }
     }
-    cIR.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('IR',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RD' : this.Value = gBusses['DB'].Value; this.SetOutputs(); break;
-                }
-            }
+    cIR.prototype.ProcessInput = function(pSignal) {
+        switch(pSignal.SignalName) {
+            case 'RI' : this.Value = gBusses['IB'].Value; this.SetOutputs(); break;
         }
     }
 }
 {// class cSP
     function cSP(pX,pY) {
-        cUnit.call(this,'SP',pX,pY,['RD','WD','WA']);
+        cUnit.call(this,'SP',pX,pY,['RD','WD','RU','WA']);
         gUnits['SP'] = this;
     }
     cSP.prototype = Object.create(cUnit.prototype);
@@ -876,7 +908,6 @@ function ProcessPair() { gUnits['IC'].NextState(); }
         gUnits['AD'] = this;
     }
     cAD.prototype = Object.create(cUnit.prototype);
-    cAD.prototype.Address = function() { return this.Value; }
     cAD.prototype.Tick = function() {
         var lSignalID;
         for (var i = 0; i < this.Inputs.length; i++) {
@@ -1179,18 +1210,25 @@ function ProcessPair() { gUnits['IC'].NextState(); }
     cMM.prototype = Object.create(cUnit.prototype);
     cMM.prototype.GetValue = function() { return this.Values[gUnits['AD'].Address()]; }
     cMM.prototype.SetValue = function(pValue) {  this.Values[gUnits['AD'].Address()] = pValue; }
+    cMM.prototype.HighlightAddress = function(pUnitName, pColor) {
+        var i = gUnits[pUnitName].Address();
+        var lID = 'mm' + toHex(i);
+        var lHTML = '<b style="font-size:16px;"><font color="' +  pColor + '">';
+        lHTML += toHex(this.Values[i]);
+        lHTML += '</font></b>';
+        document.getElementById(lID).innerHTML = lHTML;
+    }
     cMM.prototype.Draw = function() {
         this.Value = this.GetValue();
         cUnit.prototype.Draw.call(this);
         var lID = '';
         for (var i = 0; i < this.Values.length; i++) {
             lID = 'mm' + toHex(i);
-            if (i == gUnits['AD'].Address()) {
-                document.getElementById(lID).innerHTML = '<b style="font-size:16px;"><font color="red">' + toHex(this.Values[i]) + '</font></b>';
-            } else {
-                document.getElementById(lID).innerHTML = toHex(this.Values[i]);
-            }
+            document.getElementById(lID).innerHTML = toHex(this.Values[i]);
         }
+        this.HighlightAddress('SP', 'green');
+        this.HighlightAddress('PC', 'blue' );
+        this.HighlightAddress('AD', 'red'  );
     }
     cMM.prototype.Tick = function() {
         var lSignalID;
@@ -1219,8 +1257,45 @@ function ProcessSignals() {
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
 }
-function HaltCPU() { clearInterval(fRunSignal); }
-function RunStates() { gUnits['IC'].NextState(); cCK.Tick(); }
-function RunSignals() {
-    fRunSignal = setInterval(RunStates, 1000);
+{// CPU
+    CPU = function() {}
+    CPU.Reset = function() {
+        cInfoQueue.ClearQueue();
+        CPU.PC.Reset();
+        IR.Reset();
+        CPU.IC.Reset();
+        PLA.PREP = new cSignal('PLA','PR')
+    }
+    CPU.Run  = function() { fRunSignal = setInterval(CPU.fRun, 100); }
+    CPU.Halt = function() {              clearInterval(fRunSignal);   }
+    CPU.Show = function() {
+        cBus.DrawBusses();
+        cUnit.DrawUnits();
+    }
+    CPU.Next = function() { CPU.Prepare(); CPU.Show(); }
+    CPU.fRun = function() { CPU.Next(); CPU.Process(); }
+    CPU.Prepare = function() {
+        PLA.Prepare();
+        CPU.SetRunState(true);
+    }
+    CPU.Process = function() {
+        PLA.Tick();
+        CPU.Show();
+        CK.Tick();
+        CPU.IC.Tick();
+        CPU.SetRunState(false);
+    }
+    CPU.RunStateButtons = function() {
+        if (CPU.RunState) {
+            document.getElementById("button-next").style.display = "none";
+            document.getElementById("button-process").style.visibility = "visible";
+        } else {
+            document.getElementById("button-next").style.display = "inline";
+            document.getElementById("button-process").style.visibility = "hidden";
+        }
+    }
+    CPU.SetRunState = function(pRunState) {
+        CPU.RunState = pRunState;
+        CPU.RunStateButtons();
+    }
 }

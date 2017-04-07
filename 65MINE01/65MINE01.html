@@ -5,6 +5,14 @@
     <script src ="65MINE01.js"  type="text/javascript" ></script>
 </head>
 <body onload="Init65MINE01()">
+    <div>
+        <button onclick="CPU.Run()" >Run</button>
+        <button onclick="CPU.Halt()">Halt</button>
+        <button id="button-next"    onclick="CPU.Next()"   >Next</button>
+        <button id="button-process" onclick="CPU.Process()">Process</button>
+        <br/>
+        <button id="list-instruction-cycles" onclick="cInstruction.CycleList()">Cycle List</button>
+    </div>
     <div class="divleft"><canvas id="cpu"  width="840" height="800">Canvas wordt niet ondersteund door deze browser</canvas></div>
     <hr>
     <div class="memory">
@@ -30,10 +38,6 @@
     </div>
     <hr>
     <div class="signals">
-        <button onclick="RunSignals()">Run</button>
-        <button onclick="HaltCPU()">Halt</button>
-        <button id="button-next-pair" onclick="NextPair()">Next</button>
-        <button id="button-process-pair" onclick="ProcessPair()">Process</button>
         <div class="instruction"><h3>Instruction - Cycle - Signal</h3><p id="instruction-info"></p></div>
     </div>
     <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
