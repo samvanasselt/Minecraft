@@ -137,7 +137,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
         new cSignalPair('CY=i1'        ,'FL.CY');   //  Read Carry from instruction bit 1
         new cSignalPair('IC.RS'        ,'IC.RS');   //  Reset instruction clock
-        new cSignalPair('IC.CR'        ,'IC.CR');   //  Conditional reset instruction clock
+        // new cSignalPair('IC.CR'        ,'IC.CR');   //  Conditional reset instruction clock
     }
 }
 {// class gCycleSignalSet
@@ -427,13 +427,12 @@ function Init65MINE01() {
         for (var i = 0; i < this.Outputs.length; i++) { new cSignal(this.Naam, this.Outputs[i]); }
     }
     cUnit.InitUnits = function() {
-        CPU.MM = new cMM(720, 30);
-        CPU.ML = new cML(280,100);
-        CPU.CK = new cCK( 20,332);
-        CPU.IC = new cIC( 20,400);
         CPU.IF = new cIF(20,30);
         CPU.IR = new cIR( 20,180);
+        CPU.CK = new cCK( 20,300);
+        CPU.IC = new cIC( 20,370);
         CPU.FL = new cFL( 20,480);
+        CPU.ML = new cML(280,100);
         CPU.PC = new cPC(280,170);
         CPU.SP = new cSP(280,250);
         CPU.OC = new cOC(280,320+40+24);
@@ -442,6 +441,7 @@ function Init65MINE01() {
         CPU.AL = new cAL(384,320+20);
         CPU.SH = new cSH(384,320+40+24+40);
         CPU.AC = new cAC(280,520);
+        CPU.MM = new cMM(720, 30);
         CPU.AD = new cAD(720,120);
     }
     cUnit.DrawUnits = function() { Object.keys(gUnits).forEach( function(ID) { gUnits[ID].Draw(); }); }
@@ -711,7 +711,7 @@ function Init65MINE01() {
 }
 {// class cIC
     function cIC(pX,pY) {
-        cUnit.call(this,'IC',pX,pY,['p1','p2','RS','CR'],['t0','t1','t2','t3','t4','t5','t6','t7']);
+        cUnit.call(this,'IC',pX,pY,['p1','p2','RS'],['t0','t1','t2','t3','t4','t5','t6','t7']);
         gUnits['IC'] = this;
     }
     cIC.prototype = Object.create(cUnit.prototype);
@@ -735,24 +735,6 @@ function Init65MINE01() {
         CPU.IC.CycleChanged = !(CPU.IC.CurrentCycle == this.Cycle());
         CPU.IC.CurrentCycle = this.Cycle();
     }
-    cIC.prototype.ConditionalResetIC = function() {
-        var lIR = gUnits['IR'];
-        var lFL = gUnits['FL'];
-        var lIns   = gInstructions[lIR.Value];
-        var lBranch;
-        switch (lIns.Mnemonic) {
-            case 'BEQ nn' : lBranch = !lFL.Flag('Z'); break;
-            case 'BNE nn' : lBranch =  lFL.Flag('Z'); break;
-            case 'BCC nn' : lBranch = !lFL.Flag('C'); break;
-            case 'BCS nn' : lBranch =  lFL.Flag('C'); break;
-            case 'BVC nn' : lBranch = !lFL.Flag('V'); break;
-            case 'BVS nn' : lBranch =  lFL.Flag('V'); break;
-            case 'BPL nn' : lBranch = !lFL.Flag('N'); break;
-            case 'BMI nn' : lBranch =  lFL.Flag('N'); break;
-            default: alert('Unexpected conditional reset found for instruction ' + lIns.Mnemonic); break;
-        }
-        if (!lBranch) this.Reset();   //  If branch is not taken, get next instruction
-    }
     cIC.prototype.Show = function() {
         for (var i = 0; i < this.Outputs.length; i++)
             gSignals[this.Naam + '.' + this.Outputs[i]].Level = this.Cycles[i];
@@ -764,9 +746,27 @@ function Init65MINE01() {
             case 'p1' : for (var i=1; i<9; i++) this.Buffer[i % 8] = this.Cycles[i-1]; this.SetValue(); break;
             case 'p2' : for (var i=0; i<8; i++) this.Cycles[i]     = this.Buffer[i]  ; this.SetValue(); break;
             case 'RS' : this.Reset(); break;
-            case 'CR' : this.ConditionalResetIC(); break;
+            // case 'CR' : this.ConditionalResetIC(); break;
         }
     }
+    // cIC.prototype.ConditionalResetIC = function() {
+        // var lIR = gUnits['IR'];
+        // var lFL = gUnits['FL'];
+        // var lIns   = gInstructions[lIR.Value];
+        // var lBranch;
+        // switch (lIns.Mnemonic) {
+            // case 'BEQ nn' : lBranch = !lFL.Flag('Z'); break;
+            // case 'BNE nn' : lBranch =  lFL.Flag('Z'); break;
+            // case 'BCC nn' : lBranch = !lFL.Flag('C'); break;
+            // case 'BCS nn' : lBranch =  lFL.Flag('C'); break;
+            // case 'BVC nn' : lBranch = !lFL.Flag('V'); break;
+            // case 'BVS nn' : lBranch =  lFL.Flag('V'); break;
+            // case 'BPL nn' : lBranch = !lFL.Flag('N'); break;
+            // case 'BMI nn' : lBranch =  lFL.Flag('N'); break;
+            // default: alert('Unexpected conditional reset found for instruction ' + lIns.Mnemonic); break;
+        // }
+        // if (!lBranch) this.Reset();   //  If branch is not taken, get next instruction
+    // }
 }
 {// class cPC
     function cPC(pX,pY) {
@@ -1256,6 +1256,19 @@ function ProcessSignals() {
     Object.keys(gUnits).forEach( function(ID) { gUnits[ ID].Draw(); });
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
+}
+UNITTEST = function() {}
+UNITTEST.JMP = function () {
+        var lPC = parseInt('10000000',2);
+        this.Values[lPC++] = parseInt('11010000',2); // LDA nn instructie
+        this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
+        this.Values[lPC++] = parseInt('00000001',2); // INA    instructie
+        this.Values[lPC++] = parseInt('11010001',2); // STA nn instructie
+        this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
+        this.Values[lPC++] = parseInt('11101011',2); // BNE nn instructie
+        this.Values[lPC++] = parseInt('11111001',2); //     nn = $F9
+        this.Values[lPC++] = parseInt('11110000',2); // JMP nn instructie
+        this.Values[lPC++] = parseInt('10000000',2); //     nn = $80
 }
 {// CPU
     CPU = function() {}
