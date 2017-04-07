@@ -3,7 +3,7 @@
 .divleft { float:left; }
 .code { font-family:"Courier New"; font-size:12px; }
 .memory { font-family:"Courier New"; font-size:12px; }
-.memory th, td { border-width:0px 1px 1px 0px; border-style:solid; border-color:gray; padding:4px; text-align:center; vertical-align: middle;}
+.memory th, td { border-width:0px 1px 1px 0px; border-style:solid; border-color:gray; padding:4px; text-align:center; vertical-align: middle; width:20px; height:20px;}
 .memory th {font-weight: bold;}
 .memory table { border-spacing:0px; border:1px solid gray;}
 .instruction {min-height:100px;}

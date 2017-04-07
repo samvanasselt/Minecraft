@@ -10,11 +10,9 @@
         <button onclick="CPU.Halt()">Halt</button>
         <button id="button-next"    onclick="CPU.Next()"   >Next</button>
         <button id="button-process" onclick="CPU.Process()">Process</button>
-        <br/>
-        <button id="list-instruction-cycles" onclick="cInstruction.CycleList()">Cycle List</button>
     </div>
-    <div class="divleft"><canvas id="cpu"  width="840" height="800">Canvas wordt niet ondersteund door deze browser</canvas></div>
     <hr>
+    <div class="divleft"><canvas id="cpu"  width="840" height="800">Canvas wordt niet ondersteund door deze browser</canvas></div>
     <div class="memory">
         <table>
             <tr><th>00</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr>
@@ -36,9 +34,12 @@
             <tr><th>F</th><td id="mmF0">0</td><td id="mmF1">1</td><td id="mmF2">2</td><td id="mmF3">3</td><td id="mmF4">4</td><td id="mmF5">5</td><td id="mmF6">6</td><td id="mmF7">7</td><td id="mmF8">8</td><td id="mmF9">9</td><td id="mmFA">A</td><td id="mmFB">B</td><td id="mmFC">C</td><td id="mmFD">D</td><td id="mmFE">E</td><td id="mmFF">F</td></tr>
         </table>
     </div>
-    <hr>
     <div class="signals">
-        <div class="instruction"><h3>Instruction - Cycle - Signal</h3><p id="instruction-info"></p></div>
+        <div class="instruction"><h4>Instruction - Cycle - Signal</h4><p id="instruction-info"></p></div>
+    </div>
+    <hr />
+    <div>
+        <button id="list-instruction-cycles" onclick="cInstruction.CycleList()">Cycle List</button>
     </div>
     <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
     <!--
