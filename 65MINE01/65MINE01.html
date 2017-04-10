@@ -42,6 +42,19 @@
     <hr />
     <div>
         <button id="list-instruction-cycles" onclick="cInstruction.CycleList()">Cycle List</button>
+        <br />
+        <button id="unittest-jmp" onclick="UNITTEST('NOP')">NOP</button>
+        <button id="unittest-jmp" onclick="UNITTEST('INA')">INA</button>
+        <button id="unittest-jmp" onclick="UNITTEST('DEA')">DEA</button>
+        <button id="unittest-jmp" onclick="UNITTEST('ROL')">ROL</button>
+        <button id="unittest-jmp" onclick="UNITTEST('ASL')">ASL</button>
+        <button id="unittest-jmp" onclick="UNITTEST('ROR')">ROR</button>
+        <button id="unittest-jmp" onclick="UNITTEST('LSR')">LSR</button>
+        <button id="unittest-jmp" onclick="UNITTEST('PLA')">Stack</button>
+        <button id="unittest-jmp" onclick="UNITTEST('JMP nn')">JMP</button>
+        <button id="unittest-jmp" onclick="UNITTEST('JSR nn')">JSR</button>
+        <button id="unittest-jmp" onclick="UNITTEST('PLP')">Status</button>
+        <button id="unittest-jmp" onclick="UNITTEST('ADC #')">ADC #</button>
     </div>
     <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
     <!--

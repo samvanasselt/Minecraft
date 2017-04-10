@@ -131,7 +131,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('MM=PC','PC.WD','MM.RD');   //  Load memory address AD from program counter (write to memory)
         new cSignalPair('MM=FL','FL.WD','MM.RD');   //  Load memory address AD from flags           (write to memory)
         new cSignalPair('FL=MM','MM.WD','FL.RD');   //  Load flags from memory address AD
-        new cSignalPair('FL=SH'        ,'FL.SH');   //  Load N   C Z flags from ALU
+        new cSignalPair('FL=SH'        ,'FL.SH');   //  Load N   C Z flags from shift register
         new cSignalPair('FL=AL'        ,'FL.AL');   //  Load N V C Z flags from ALU
         new cSignalPair('FL=NZ'        ,'FL.NZ');   //  Load N     Z flags from ALU
         new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
@@ -231,10 +231,10 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         if (gCycles.length == 0) cCycle.InitCycles();
         new cInstruction('00,00,0001','INA'   ,'AL=AC±1,AC=AL');
         new cInstruction('00,00,0011','DEA'   ,'AL=AC±1,AC=AL');
-        new cInstruction('00,00,0100','ROL'   ,'SH=C<AC>C,AC=SH');      //  SH =    AC<CY
-        new cInstruction('00,00,0101','ASL'   ,'SH=C<AC>C,AC=SH');        //  SH =    AC<0
-        new cInstruction('00,00,0100','ROR'   ,'SH=C<AC>C,AC=SH');       //  SH = CY>AC
-        new cInstruction('00,00,0100','LSR'   ,'SH=C<AC>C,AC=SH');        //  SH =  0>AC
+        new cInstruction('00,00,0100','ROL'   ,'SH=C<AC>C,AC=SH');  //  SH = AC<CY
+        new cInstruction('00,00,0101','ASL'   ,'SH=C<AC>C,AC=SH');  //  SH = AC<0
+        new cInstruction('00,00,0110','ROR'   ,'SH=C<AC>C,AC=SH');  //  SH = CY>AC
+        new cInstruction('00,00,0111','LSR'   ,'SH=C<AC>C,AC=SH');  //  SH =  0>AC
         new cInstruction('00,01,0001','PLA'   ,'AC=(SP),AL=SP±1,SP=AL');
         new cInstruction('00,01,0011','PHA'   ,'AL=SP±1,SP=AL,AD=SP,(AD)=AC');
         new cInstruction('00,01,0100','TSA'   ,'AC=SP');
@@ -270,6 +270,16 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cInstruction('11,10,1111','BMI nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
         new cInstruction('11,11,0000','JMP nn','ML=(PC),PC=ML');
         new cInstruction('11,11,0011','JSR nn','ML=(PC),JSR-1,SP=AL,AD=SP,(AD)=PC,PC=ML');
+    }
+    cInstruction.GetInstructionFromMnemonic = function(pMnemonic) {
+        var lIns = undefined;
+        Object.keys(gInstructions).forEach( function(insID) {
+            lInstruction = gInstructions[insID];
+            if (lInstruction.Mnemonic == pMnemonic) lIns = lInstruction;
+        });
+        return lIns;
+        // for (var i=0; i < gInstructions.length; i++)
+            // if (gInstructions[i].Mnemonic == pMnemonic) return gInstructions[i];
     }
     cInstruction.CycleList = function() {
         Object.keys(gInstructions).forEach( function(insID) {
@@ -448,9 +458,11 @@ function Init65MINE01() {
     cUnit.prototype.Address = function() { return this.Value; } // For AD, PC, SP
     cUnit.prototype.Tick = function() {
         var lSignal;
+        var lPhi1 = cSignal.GetSignal('CK', 'p1').Level;  // 1 if read  phase
+        var lPhi2 = cSignal.GetSignal('CK', 'p2').Level;  // 1 if write phase
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignal = cSignal.GetSignal( this.Naam, this.Inputs[i]);
-            if (lSignal.Level == 1) this.ProcessInput(lSignal);
+            if (lSignal.Level == 1) this.ProcessInput(lSignal, lPhi1, lPhi2);
         }
     }
     cUnit.prototype.IsActive = function() {
@@ -778,7 +790,7 @@ function Init65MINE01() {
     cPC.prototype.Reset = function() { this.ProcessInput(cSignal.GetSignal(this.Naam, 'RST')); }
     cPC.prototype.Increment = function() {
         if (cSignal.GetSignal(this.Naam, 'p1').Level == 1 && this.INC.Level < 1) this.Value++;
-        this.Value %= 256
+        this.Value %= 256;
         this.INC.SetLevel(1);
     }
     cPC.prototype.ProcessInput = function(pSignal) {
@@ -895,6 +907,7 @@ function Init65MINE01() {
             if (gSignals[lSignalID].Level == 1) {
                 switch(this.Inputs[i]) {
                     case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    case 'RU' :                       this.Value = gBusses['UB'].Value; break;
                     case 'WD' : gBusses['DB'].Value = this.Value;                       break;
                     case 'WA' : gBusses['AB'].Value = this.Value;                       break;
                 }
@@ -946,19 +959,28 @@ function Init65MINE01() {
         gUnits['AC'] = this;
     }
     cAC.prototype = Object.create(cUnit.prototype);
-    cAC.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('AC',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RU' :                       this.Value = gBusses['UB'].Value; break;
-                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
-                    case 'WD' : gBusses['DB'].Value = this.Value;                       break;
-                }
-            }
+    cAC.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase
+            case 'WD' : gBusses['DB'].Value = this.Value; break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+            case 'RD' : this.Value = gBusses['DB'].Value; break;
+            case 'RU' : this.Value = gBusses['UB'].Value; break;
         }
     }
+    // cAC.prototype.Tick = function() {
+        // var lSignalID;
+        // for (var i = 0; i < this.Inputs.length; i++) {
+            // lSignalID = SignalID('AC',this.Inputs[i]);
+            // if (gSignals[lSignalID].Level == 1) {
+                // switch(this.Inputs[i]) {
+                    // case 'RU' :                       this.Value = gBusses['UB'].Value; break;
+                    // case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    // case 'WD' : gBusses['DB'].Value = this.Value;                       break;
+                // }
+            // }
+        // }
+    // }
 }
 {// class cFL
     function cFL(pX,pY) {
@@ -986,21 +1008,35 @@ function Init65MINE01() {
         gSignals['FL.C'].Level = ((this.Value &   2) == 0) ? 0 : 1;
         gSignals['FL.Z'].Level = ((this.Value &   1) == 0) ? 0 : 1;
     }
-    cFL.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('FL',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RD' :                       this.Value = gBusses['DB'].Value; break;
-                    case 'WD' : gBusses['DB'].Value = this.Value;                       break;
-                    case 'SH' : this.SetFlags('N.....CZ', gUnits['SH'].Flags());        break;
-                    case 'AL' : this.SetFlags('NV....CZ', gUnits['AL'].Flags());        break;
-                    case 'NZ' : this.SetFlags('N......Z', gUnits['AL'].Flags());        break;
-                    case 'DB' : this.SetFlags('N......Z',gBusses['DB'].Flags());        break;
-                    case 'CY' : this.SetFlags('......C.', (gUnits['IR'].Bit1() == '0') ? 0 : 2);    break;
-                }
-            }
+    // cFL.prototype.Tick = function() {
+        // var lSignalID;
+        // for (var i = 0; i < this.Inputs.length; i++) {
+            // lSignalID = SignalID('FL',this.Inputs[i]);
+            // if (gSignals[lSignalID].Level == 1) {
+                // switch(this.Inputs[i]) {
+                    // case 'RD' :                       this.Value = gBusses['DB'].Value; break;
+                    // case 'WD' : gBusses['DB'].Value = this.Value;                       break;
+                    // case 'SH' : this.SetFlags('N.....CZ', gUnits['SH'].Flags());        break;
+                    // case 'AL' : this.SetFlags('NV....CZ', gUnits['AL'].Flags());        break;
+                    // case 'NZ' : this.SetFlags('N......Z', gUnits['AL'].Flags());        break;
+                    // case 'DB' : this.SetFlags('N......Z',gBusses['DB'].Flags());        break;
+                    // case 'CY' : this.SetFlags('......C.', (gUnits['IR'].Bit1() == '0') ? 0 : 2);    break;
+                // }
+            // }
+        // }
+        // this.SetSignals();
+    // }
+    cFL.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {
+            case 'WD' : gBusses['DB'].Value = this.Value; break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {
+            case 'RD' : this.Value = gBusses['DB'].Value;                break;
+            case 'SH' : this.SetFlags('N.....CZ', gUnits['SH'].Flags()); break;
+            case 'AL' : this.SetFlags('NV....CZ', gUnits['AL'].Flags()); break;
+            case 'NZ' : this.SetFlags('N......Z', gUnits['AL'].Flags()); break;
+            case 'DB' : this.SetFlags('N......Z',gBusses['DB'].Flags()); break;
+            case 'CY' : this.SetFlags('......C.', (gUnits['IR'].Bit1() == '0') ? 0 : 2);    break;
         }
         this.SetSignals();
     }
@@ -1029,25 +1065,43 @@ function Init65MINE01() {
         gUnits['OB'] = this;
     }
     cOB.prototype = Object.create(cUnit.prototype);
-    cOB.prototype.Tick = function() {
-        var lSignalID;
-        var lIR = gUnits['IR'].Opcode();
-        var li3 = lIR.substr(7-3,1) == '1';
-        var li1 = lIR.substr(7-1,1) == '1';
-        var li0 = lIR.substr(7-0,1) == '1';
-        var FlagNegate = !li3 && li1; gSignals['OB.-B'].Level = (FlagNegate) ? 1 : 0;
-        var FlagRead1  = !li3 && li0; gSignals['OB.1' ].Level = (FlagRead1 ) ? 1 : 0;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('OB',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RD': this.Value = (FlagRead1) ? 1 : gBusses['DB'].Value;
-                               if (FlagNegate) this.Value = -this.Value;
-                               break;
-                }
+    cOB.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase
+            default: break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+            case 'RD': {
+                var lIR = gUnits['IR'].Opcode();
+                var li3 = lIR.substr(7-3,1) == '1';
+                var li1 = lIR.substr(7-1,1) == '1';
+                var li0 = lIR.substr(7-0,1) == '1';
+                var FlagNegate = !li3 && li1; gSignals['OB.-B'].Level = (FlagNegate) ? 1 : 0;
+                var FlagRead1  = !li3 && li0; gSignals['OB.1' ].Level = (FlagRead1 ) ? 1 : 0;
+                this.Value = (FlagRead1) ? 1 : gBusses['DB'].Value;
+                if (FlagNegate) this.Value = 256 - this.Value;
+                break;
             }
         }
     }
+    // cOB.prototype.Tick = function() {
+        // var lSignalID;
+        // var lIR = gUnits['IR'].Opcode();
+        // var li3 = lIR.substr(7-3,1) == '1';
+        // var li1 = lIR.substr(7-1,1) == '1';
+        // var li0 = lIR.substr(7-0,1) == '1';
+        // var FlagNegate = !li3 && li1; gSignals['OB.-B'].Level = (FlagNegate) ? 1 : 0;
+        // var FlagRead1  = !li3 && li0; gSignals['OB.1' ].Level = (FlagRead1 ) ? 1 : 0;
+        // for (var i = 0; i < this.Inputs.length; i++) {
+            // lSignalID = SignalID('OB',this.Inputs[i]);
+            // if (gSignals[lSignalID].Level == 1) {
+                // switch(this.Inputs[i]) {
+                    // case 'RD': this.Value = (FlagRead1) ? 1 : gBusses['DB'].Value;
+                               // if (FlagNegate) this.Value = 256 - this.Value;
+                               // break;
+                // }
+            // }
+        // }
+    // }
 }
 {// class cOC
     function cOC(pX,pY) {
@@ -1056,23 +1110,42 @@ function Init65MINE01() {
         gUnits['OC'] = this;
     }
     cOC.prototype = Object.create(cUnit.prototype);
-    cOC.prototype.Tick = function() {
-        var lSignalID;
-        var lIR = gUnits['IR'].Opcode();
-        var li5 = lIR.substr(7-5,1) == '1';
-        var li0 = lIR.substr(7-0,1) == '1';
-        var FlagRead0  = li5 || li0;
-        gSignals['OC.0'].Level = ( FlagRead0) ? 1 : 0;
-        gSignals['OC.C'].Level = (!FlagRead0) ? 1 : 0;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('OC',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RD': this.Value = (FlagRead0) ? 0 : 1; break;
-                }
+    cOC.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase, exception for operand C!
+            case 'RD': {
+                var lSignalID;
+                var lIR = gUnits['IR'].Opcode();
+                var li5 = lIR.substr(7-5,1) == '1';
+                var li0 = lIR.substr(7-0,1) == '1';
+                var FlagRead0  = li5 || li0;
+                gSignals['OC.0'].Level = ( FlagRead0) ? 1 : 0;
+                gSignals['OC.C'].Level = (!FlagRead0) ? 1 : 0;
+                this.Value = (FlagRead0) ? 0 : (CPU.FL.Flag('C')) ? 1 : 0;
+                break;
             }
+            default: break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+            default: break;
         }
     }
+    // cOC.prototype.Tick = function() {
+        // var lSignalID;
+        // var lIR = gUnits['IR'].Opcode();
+        // var li5 = lIR.substr(7-5,1) == '1';
+        // var li0 = lIR.substr(7-0,1) == '1';
+        // var FlagRead0  = li5 || li0;
+        // gSignals['OC.0'].Level = ( FlagRead0) ? 1 : 0;
+        // gSignals['OC.C'].Level = (!FlagRead0) ? 1 : 0;
+        // for (var i = 0; i < this.Inputs.length; i++) {
+            // lSignalID = SignalID('OC',this.Inputs[i]);
+            // if (gSignals[lSignalID].Level == 1) {
+                // switch(this.Inputs[i]) {
+                    // case 'RD': this.Value = (FlagRead0) ? 0 : (CPU.FL.Flag('C')) ? 1 : 0; break;
+                // }
+            // }
+        // }
+    // }
 }
 {// class cAL
     function cAL(pX,pY) {
@@ -1162,16 +1235,21 @@ function Init65MINE01() {
         gSignals['SH.Z'].Level = (this.Zflag) ? 1 : 0;
     }
     cSH.prototype.Tick = function() {
+
+        if (CPU.IR.Instruction().Mnemonic == 'ROR')
+            var lBreakpoint = true;
+
         var lSignalID;
         var FlagShiftRight = (gUnits['IR'].Bit1() == '1');
         gSignals['SH.<'].Level = (FlagShiftRight) ? 0 : 1;
         gSignals['SH.>'].Level = (FlagShiftRight) ? 1 : 0;
         var lOA = gUnits['OA'].Value;
         var lOC = gUnits['OC'].Value;
-        this.Value =  (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : lOA << 1 + lOC;
-        this.Cflag =  (FlagShiftRight) ? lOA % 1 == 1 : lOA > 127;
+        this.Value =  (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : (lOA << 1) + lOC;
+        this.Cflag =  (FlagShiftRight) ? (lOA % 2) == 1 : lOA > 127;
         this.Nflag =  (this.Value > 127) ? true : false;
         this.Zflag = !(this.Value == 0);
+        this.Value %= 256;
         this.SetOutputs();
         for (var i = 0; i < this.Inputs.length; i++) {
             lSignalID = SignalID('SH',this.Inputs[i]);
@@ -1242,6 +1320,19 @@ function Init65MINE01() {
             }
         }
     }
+    cMM.prototype.Program = function(lInstructionString) {
+        var lIns;
+        var lPC = parseInt('10000000',2);
+        var lBytes = lInstructionString.split(',');
+        for (var i=0; i < lBytes.length; i++) {
+            lIns = cInstruction.GetInstructionFromMnemonic(lBytes[i]);
+            if (lIns == undefined) {
+                this.Values[lPC++] = parseInt(lBytes[i],16);
+            } else {
+                this.Values[lPC++] = lIns.Value;
+            }
+        }
+    }
 }
 function ProcessSignals() {
     if (gSignalIDs != undefined) {
@@ -1257,18 +1348,52 @@ function ProcessSignals() {
     Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); });
     if (gSignalIDs != undefined) gSignalIDs.forEach(function(ID) { gSignals[ID].Level = 0 });
 }
-UNITTEST = function() {}
-UNITTEST.JMP = function () {
-        var lPC = parseInt('10000000',2);
-        this.Values[lPC++] = parseInt('11010000',2); // LDA nn instructie
-        this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
-        this.Values[lPC++] = parseInt('00000001',2); // INA    instructie
-        this.Values[lPC++] = parseInt('11010001',2); // STA nn instructie
-        this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
-        this.Values[lPC++] = parseInt('11101011',2); // BNE nn instructie
-        this.Values[lPC++] = parseInt('11111001',2); //     nn = $F9
-        this.Values[lPC++] = parseInt('11110000',2); // JMP nn instructie
-        this.Values[lPC++] = parseInt('10000000',2); //     nn = $80
+UNITTEST = function(pMnemonic) {
+    switch (pMnemonic) {
+        case 'INA'   : CPU.MM.Program('LDA #,00,INA,JMP nn,82'); break;
+        case 'DEA'   : CPU.MM.Program('LDA #,00,DEA,JMP nn,82'); break;
+        case 'ROL'   : CPU.MM.Program('SEC,LDA #,00,ROL,JMP nn,83'); break;
+        case 'ASL'   : CPU.MM.Program('SEC,LDA #,01,ASL,JMP nn,83'); break;
+        case 'ROR'   : CPU.MM.Program('SEC,LDA #,04,ROR,JMP nn,83'); break;
+        case 'LSR'   : CPU.MM.Program('SEC,LDA #,80,LSR,JMP nn,83'); break;
+        case 'PLA'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
+        case 'PHA'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
+        case 'TSA'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
+        case 'TAS'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
+        case 'NOP'   : CPU.MM.Program('NOP,JMP nn,80'); break;
+        case 'RTS'   : CPU.MM.Program('LDA #,FE,TAS,JSR nn,87,JMP nn,83,RTS'); break;
+        case 'PLP'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
+        case 'PHP'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
+        case 'CLC'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
+        case 'SEC'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
+        case 'ADC #' : CPU.MM.Program('LDA #,00,CLC,ADC #,01,SEC,ADC #,0F,JMP nn,83'); break;
+        // case 'SBC #' : CPU.MM.Program('SBC #'
+        // case 'AND #' : CPU.MM.Program('AND #'
+        // case 'ORA #' : CPU.MM.Program('ORA #'
+        // case 'EOR #' : CPU.MM.Program('EOR #'
+        // case 'LDA #' : CPU.MM.Program('LDA #'
+        // case 'CMP #' : CPU.MM.Program('CMP #'
+        // case 'ADC nn': CPU.MM.Program('ADC nn'
+        // case 'SBC nn': CPU.MM.Program('SBC nn'
+        // case 'AND #' : CPU.MM.Program('AND #'
+        // case 'ORA #' : CPU.MM.Program('ORA #'
+        // case 'EOR #' : CPU.MM.Program('EOR #'
+        // case 'LDA nn': CPU.MM.Program('LDA nn'
+        // case 'STA nn': CPU.MM.Program('STA nn'
+        // case 'CMP nn': CPU.MM.Program('CMP nn'
+        // case 'BCC nn': CPU.MM.Program('BCC nn'
+        // case 'BCS nn': CPU.MM.Program('BCS nn'
+        // case 'BEQ nn': CPU.MM.Program('BEQ nn'
+        // case 'BNE nn': CPU.MM.Program('BNE nn'
+        // case 'BVC nn': CPU.MM.Program('BVC nn'
+        // case 'BVS nn': CPU.MM.Program('BVS nn'
+        // case 'BPL nn': CPU.MM.Program('BPL nn'
+        // case 'BMI nn': CPU.MM.Program('BMI nn'
+        case 'JMP nn': CPU.MM.Program('JMP nn,80'); break;
+        case 'JSR nn': CPU.MM.Program('LDA #,FE,TAS,JSR nn,87,JMP nn,83,RTS'); break;
+    }
+    CPU.Reset();
+    CPU.MM.Draw();
 }
 {// CPU
     CPU = function() {}
