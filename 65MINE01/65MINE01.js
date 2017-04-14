@@ -254,9 +254,9 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cInstruction('01,01,0010','CMP #' ,'ML=(PC),A=AC,FL=A±ML,PC++');
         new cInstruction('11,00,0000','ADC nn','ML=(PC),A=AC,AC=A±(ML),PC++');
         new cInstruction('11,00,0010','SBC nn','ML=(PC),A=AC,AC=A±(ML),PC++');
-        new cInstruction('11,00,1000','AND #' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
-        new cInstruction('11,00,1001','ORA #' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
-        new cInstruction('11,00,1010','EOR #' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
+        new cInstruction('11,00,1000','AND nn' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
+        new cInstruction('11,00,1001','ORA nn' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
+        new cInstruction('11,00,1010','EOR nn' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
         new cInstruction('11,01,0000','LDA nn','ML=(PC),LDA nn');
         new cInstruction('11,01,0001','STA nn','ML=(PC),AD=ML,(AD)=AC,PC++');
         new cInstruction('11,01,0010','CMP nn','ML=(PC),A=AC,FL=A±(ML),PC++');
@@ -422,14 +422,16 @@ function Init65MINE01() {
 {// class cUnit
     // function cUnit(pNaam, pX = undefined, pY = undefined, pInputs = undefined, pOutputs = undefined) {
     function cUnit(pNaam, pX, pY, pInputs, pOutputs) {
-        var Naam;
-        var Value;
-        var Inputs;
-        var Outputs;
-        var UnitBox;
+        // var Naam;
+        // var Value;
+        // var Inputs;
+        // var Outputs;
+        // var UnitBox;
         this.Naam    = pNaam;
         this.Value   = Math.floor(Math.random() * 256);
         this.UnitBox = new cUnitBox(this.Naam);
+        this.Bits    = [0,0,0,0,0,0,0,0];
+        this.SetBits();
         if (!(pX == undefined || pY == undefined)) this.UnitBox.SetXY(pX,pY);
         this.Inputs  = (pInputs  == undefined) ? [] : pInputs;
         this.Outputs = (pOutputs == undefined) ? [] : pOutputs;
@@ -455,6 +457,15 @@ function Init65MINE01() {
         CPU.AD = new cAD(720,120);
     }
     cUnit.DrawUnits = function() { Object.keys(gUnits).forEach( function(ID) { gUnits[ID].Draw(); }); }
+    cUnit.prototype.SetValue = function(pValue) { this.Value = pValue; this.SetBits(); }
+    cUnit.prototype.SetBits = function() {
+        var lValue = this.Value;
+        for (var i = 0; i < 8; i++) {
+            this.Bits[i] = lValue % 2;
+            lValue >>>= 1;
+        }
+    }
+    cUnit.prototype.Bit = function(pBitnr) { return this.Bits[pBitnr]; }
     cUnit.prototype.Address = function() { return this.Value; } // For AD, PC, SP
     cUnit.prototype.Tick = function() {
         var lSignal;
@@ -820,6 +831,40 @@ function Init65MINE01() {
         }
     }
 }
+{// Random Logic
+    RandomLogic = function() {}
+    RandomLogic.Carry = function() {
+        var lValue;
+        var b0 = CPU.IR.Bit(0);
+        var b3 = CPU.IR.Bit(3);
+        var b5 = CPU.IR.Bit(5);
+        if (cLogic.OR([b5,b3,b0]) == 1) {
+            // b5 or b3 or b0 == 1  =>  0 / 1
+            var b1 = CPU.IR.Bit(1);
+            var b4 = CPU.IR.Bit(4);
+            // b4 == 0 or  b1 == 0  =>  0
+            if (cLogic.AND([b4,b1]) == 0) {
+                gSignals['OC.0'].Level = 1;
+                gSignals['OC.1'].Level = 0;
+                gSignals['OC.C'].Level = 0;
+                lValue = 0;
+            } else {
+                // b4 == 1 and b1 == 1  =>  1
+                gSignals['OC.0'].Level = 0;
+                gSignals['OC.1'].Level = 1;
+                gSignals['OC.C'].Level = 0;
+                lValue = 1;
+            }
+        } else {
+            // b5 and b3 and b0 == 0 => Value from Carry flag
+            gSignals['OC.0'].Level = 0;
+            gSignals['OC.1'].Level = 0;
+            gSignals['OC.C'].Level = 1;
+            lValue = (CPU.FL.Flag('C')) ? 1 : 0;
+        }
+        return lValue;
+    }
+}
 {// class cIR
     function IR() {}
     IR.Reset = function() { gUnits['IR'].Value = parseInt('11110000',2); } // gInstructions['JMP nn'].Opcode()
@@ -890,7 +935,7 @@ function Init65MINE01() {
     }
     cIR.prototype.ProcessInput = function(pSignal) {
         switch(pSignal.SignalName) {
-            case 'RI' : this.Value = gBusses['IB'].Value; this.SetOutputs(); break;
+            case 'RI' : this.SetValue(gBusses['IB'].Value); this.SetOutputs(); break;
         }
     }
 }
@@ -1066,10 +1111,7 @@ function Init65MINE01() {
     }
     cOB.prototype = Object.create(cUnit.prototype);
     cOB.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
-        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase
-            default: break;
-        }
-        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus and calculate phase
             case 'RD': {
                 var lIR = gUnits['IR'].Opcode();
                 var li3 = lIR.substr(7-3,1) == '1';
@@ -1078,9 +1120,12 @@ function Init65MINE01() {
                 var FlagNegate = !li3 && li1; gSignals['OB.-B'].Level = (FlagNegate) ? 1 : 0;
                 var FlagRead1  = !li3 && li0; gSignals['OB.1' ].Level = (FlagRead1 ) ? 1 : 0;
                 this.Value = (FlagRead1) ? 1 : gBusses['DB'].Value;
-                if (FlagNegate) this.Value = 256 - this.Value;
+                if (FlagNegate) this.Value = 255 - this.Value;
                 break;
             }
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+            default: break;
         }
     }
     // cOB.prototype.Tick = function() {
@@ -1105,7 +1150,7 @@ function Init65MINE01() {
 }
 {// class cOC
     function cOC(pX,pY) {
-        cUnit.call(this,'OC',pX,pY,['0','C','RD']); //  RD = Set Carry for ALU computation
+        cUnit.call(this,'OC',pX,pY,['0','1','C','RD']); //  RD = Set Carry for ALU computation
         this.Value = 0;
         gUnits['OC'] = this;
     }
@@ -1113,14 +1158,15 @@ function Init65MINE01() {
     cOC.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
         if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase, exception for operand C!
             case 'RD': {
-                var lSignalID;
-                var lIR = gUnits['IR'].Opcode();
-                var li5 = lIR.substr(7-5,1) == '1';
-                var li0 = lIR.substr(7-0,1) == '1';
-                var FlagRead0  = li5 || li0;
-                gSignals['OC.0'].Level = ( FlagRead0) ? 1 : 0;
-                gSignals['OC.C'].Level = (!FlagRead0) ? 1 : 0;
-                this.Value = (FlagRead0) ? 0 : (CPU.FL.Flag('C')) ? 1 : 0;
+                // var lSignalID;
+                // var lIR = gUnits['IR'].Opcode();
+                // var li5 = lIR.substr(7-5,1) == '1';
+                // var li0 = lIR.substr(7-0,1) == '1';
+                // var FlagRead0  = li5 || li0;
+                // gSignals['OC.0'].Level = ( FlagRead0) ? 1 : 0;
+                // gSignals['OC.C'].Level = (!FlagRead0) ? 1 : 0;
+                // this.Value = (FlagRead0) ? 0 : (CPU.FL.Flag('C')) ? 1 : 0;
+                this.SetValue(RandomLogic.Carry());
                 break;
             }
             default: break;
@@ -1245,7 +1291,7 @@ function Init65MINE01() {
         gSignals['SH.>'].Level = (FlagShiftRight) ? 1 : 0;
         var lOA = gUnits['OA'].Value;
         var lOC = gUnits['OC'].Value;
-        this.Value =  (FlagShiftRight) ? (256 * lOC + lOA) >> 1 : (lOA << 1) + lOC;
+        this.Value =  (FlagShiftRight) ? (256 * lOC + lOA) >>> 1 : (lOA << 1) + lOC;
         this.Cflag =  (FlagShiftRight) ? (lOA % 2) == 1 : lOA > 127;
         this.Nflag =  (this.Value > 127) ? true : false;
         this.Zflag = !(this.Value == 0);
@@ -1332,6 +1378,8 @@ function Init65MINE01() {
                 this.Values[lPC++] = lIns.Value;
             }
         }
+        CPU.Reset();
+        CPU.MM.Draw();
     }
 }
 function ProcessSignals() {
@@ -1366,18 +1414,18 @@ UNITTEST = function(pMnemonic) {
         case 'PHP'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
         case 'CLC'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
         case 'SEC'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
-        case 'ADC #' : CPU.MM.Program('LDA #,00,CLC,ADC #,01,SEC,ADC #,0F,JMP nn,83'); break;
-        // case 'SBC #' : CPU.MM.Program('SBC #'
-        // case 'AND #' : CPU.MM.Program('AND #'
-        // case 'ORA #' : CPU.MM.Program('ORA #'
-        // case 'EOR #' : CPU.MM.Program('EOR #'
-        // case 'LDA #' : CPU.MM.Program('LDA #'
+        case 'ADC #' : CPU.MM.Program('LDA #,00,CLC,ADC #,01,SEC,ADC #,0F,JMP nn,82'); break;
+        case 'SBC #' : CPU.MM.Program('LDA #,00,SEC,SBC #,01,CLC,SBC #,0F,JMP nn,82'); break;
+        case 'AND #' : CPU.MM.Program('LDA #,FF,AND #,AA,JMP nn,80'); break;
+        case 'ORA #' : CPU.MM.Program('LDA #,88,ORA #,22,JMP nn,80'); break;
+        case 'EOR #' : CPU.MM.Program('LDA #,AA,EOR #,F0,JMP nn,80'); break;
+        case 'LDA #' : CPU.MM.Program('LDA #,00,LDA #,01,LDA #,80,JMP nn,80'); break;
         // case 'CMP #' : CPU.MM.Program('CMP #'
         // case 'ADC nn': CPU.MM.Program('ADC nn'
         // case 'SBC nn': CPU.MM.Program('SBC nn'
-        // case 'AND #' : CPU.MM.Program('AND #'
-        // case 'ORA #' : CPU.MM.Program('ORA #'
-        // case 'EOR #' : CPU.MM.Program('EOR #'
+        // case 'AND nn': CPU.MM.Program('AND nn'
+        // case 'ORA nn': CPU.MM.Program('ORA nn'
+        // case 'EOR nn': CPU.MM.Program('EOR nn'
         // case 'LDA nn': CPU.MM.Program('LDA nn'
         // case 'STA nn': CPU.MM.Program('STA nn'
         // case 'CMP nn': CPU.MM.Program('CMP nn'
@@ -1392,8 +1440,21 @@ UNITTEST = function(pMnemonic) {
         case 'JMP nn': CPU.MM.Program('JMP nn,80'); break;
         case 'JSR nn': CPU.MM.Program('LDA #,FE,TAS,JSR nn,87,JMP nn,83,RTS'); break;
     }
-    CPU.Reset();
-    CPU.MM.Draw();
+}
+{// 3n+1
+    Collatz = function() {}
+    Collatz.Init = function() {
+        var lProgram = '';
+        // lProgram += 'LDA #,00,STA nn,X,JSR nn,STA X,JSR nn,INC X,INA,BPL,84,JMP nn,00';
+        // STA X = 8D
+        //     X = 8E
+        // INC X = 90
+        lProgram += 'LDA #,FF,TAS';
+        lProgram += ',LDA #,00,STA nn,91,JSR nn,90,JSR nn,93,INA,BPL nn,F7,JMP nn,83';
+        lProgram += ',STA nn,FF,RTS';
+        lProgram += ',PHA,LDA nn,91,INA,STA nn,91,PLA,RTS';
+        CPU.MM.Program(lProgram);
+    }
 }
 {// CPU
     CPU = function() {}

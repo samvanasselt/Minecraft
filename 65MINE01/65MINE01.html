@@ -43,6 +43,8 @@
     <div>
         <button id="list-instruction-cycles" onclick="cInstruction.CycleList()">Cycle List</button>
         <br />
+        <button id="collatz" onclick="Collatz.Init()">Collatz</button>
+        <br />
         <button id="unittest-jmp" onclick="UNITTEST('NOP')">NOP</button>
         <button id="unittest-jmp" onclick="UNITTEST('INA')">INA</button>
         <button id="unittest-jmp" onclick="UNITTEST('DEA')">DEA</button>
@@ -55,6 +57,11 @@
         <button id="unittest-jmp" onclick="UNITTEST('JSR nn')">JSR</button>
         <button id="unittest-jmp" onclick="UNITTEST('PLP')">Status</button>
         <button id="unittest-jmp" onclick="UNITTEST('ADC #')">ADC #</button>
+        <button id="unittest-jmp" onclick="UNITTEST('SBC #')">SBC #</button>
+        <button id="unittest-jmp" onclick="UNITTEST('AND #')">AND #</button>
+        <button id="unittest-jmp" onclick="UNITTEST('ORA #')">ORA #</button>
+        <button id="unittest-jmp" onclick="UNITTEST('EOR #')">EOR #</button>
+        <button id="unittest-jmp" onclick="UNITTEST('LDA #')">Flags DB</button>
     </div>
     <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
     <!--
