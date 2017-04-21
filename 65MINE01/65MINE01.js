@@ -438,6 +438,7 @@ function Init65MINE01() {
         var x = (this.x < lBusBox.x) ? this.x + this.w : lBusBox.x + lBusBox.w;
         var w = (this.x < lBusBox.x) ? lBusBox.x - x   : this.x - x;
         var y = (pRW == 'RD') ? this.y + 32 : this.y + 24;
+        if (pSignalID == 'AD.RA') y = this.y + 10;
         if (gSignals[pSignalID].Level == 1) gCanvas.strokeStyle = (pRW == 'RD') ? 'hsl(  0, 100%, 75%)' : 'hsl(120, 100%, 75%)';
         else                                gCanvas.strokeStyle = 'hsl(  0,   0%, 75%)';
         gCanvas.beginPath();
@@ -496,9 +497,9 @@ function Init65MINE01() {
     cUnit.InitUnits = function() {
         CPU.IF = new cIF(20,30);
         CPU.IR = new cIR( 20,180);
-        CPU.CK = new cCK( 20,300);
-        CPU.IC = new cIC( 20,370);
-        CPU.FL = new cFL( 20,480);
+        CPU.CK = new cCK( 20,360);
+        CPU.IC = new cIC( 20,430);
+        CPU.FL = new cFL( 20,656);
         CPU.ML = new cML(280,100);
         CPU.PC = new cPC(280,170);
         CPU.SP = new cSP(280,250);
@@ -668,9 +669,9 @@ function Init65MINE01() {
     }
     cBus.InitBusses = function() {
         gBusses['AB'] = new cBus('AB', 620-14, 74, 210);
-        gBusses['DB'] = new cBus('DB', 160-14,  4, 580);
+        gBusses['DB'] = new cBus('DB', 160-14,  4, 740);
         gBusses['IB'] = new cBus('IB',     20,100,  80);
-        gBusses['UB'] = new cBus('UB', 510-14,140, 444);
+        gBusses['UB'] = new cBus('UB', 510-14,140, 604);
     }
     cBus.DrawBusses = function() { Object.keys(gBusses).forEach(function(ID) { gBusses[ID].Draw(); }); }
     AB = function() { return gBusses['AB']; }
