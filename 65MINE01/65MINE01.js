@@ -71,6 +71,15 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         this.ToName   = pToName;
         gSignalPairs[this.PairName] = this;
     }
+    cSignalPair.GetPair = function(pPairName) {
+        if (gSignalPairs[pPairName] == undefined) {
+            console.log('Signal Pair ID[\'' + pPairName + '\'] not found. ');
+            return gSignalPairs['sim-error'];
+        } else {
+            try        { return gSignalPairs[pPairName]; }
+            catch(err) { console.log('Signal Pair ID[\'' + pPairName + '\'] not found. '); }
+        }
+    }
     cSignalPair.prototype.SetLevel = function(pLevel) {
         gSignals[this.FromName].Level = pLevel;
         if (this.ToName != undefined) gSignals[this.ToName].Level = pLevel;
@@ -106,6 +115,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('AD=PC','PC.WA','AD.RA');   //  Load address register from program counter
         new cSignalPair('AD=ML','ML.WA','AD.RA');   //  Load address register from memory latch
         new cSignalPair('AD=SP','SP.WA','AD.RA');   //  Load address register from stack pointer
+        new cSignalPair('AD=AL','AL.WU','AD.RU');   //  Load address register from ALU
         new cSignalPair('ML=MM','MM.WD','ML.RD');   //  Load memory latch from memory address AD
         new cSignalPair('IF=MM','MM.WD','IF.RD');   //  Load instruction fetch from memory address AD
         new cSignalPair('IR=IF','IF.WI','IR.RI');   //  Load instruction register from instruction fetch
@@ -116,6 +126,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('SP=AL','AL.WU','SP.RU');   //  Load stack pointer from ALU
         new cSignalPair('SP=AC','AC.WD','SP.RD');   //  Load stack pointer from accumulator
         new cSignalPair('OA=AC','AC.WD','OA.RD');   //  Load operand A from accumulator
+        new cSignalPair('OA=XR','XR.WD','OA.RD');   //  Load operand A from X-register
         new cSignalPair('OA=PC','PC.WD','OA.RD');   //  Load operand A from program counter
         new cSignalPair('OA=SP','SP.WD','OA.RD');   //  Load operand A from stack pointer
         new cSignalPair('OB=MM','MM.WD','OB.RD');   //  Load operand B from memory address AD  or  Load with 1
@@ -125,9 +136,16 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('AC=MM','MM.WD','AC.RD');   //  Load accumulator from memory address AD
         new cSignalPair('AC=ML','ML.WD','AC.RD');   //  Load accumulator from memory latch
         new cSignalPair('AC=SP','SP.WD','AC.RD');   //  Load accumulator from stack pointer
+        new cSignalPair('AC=XR','XR.WD','AC.RD');   //  Load accumulator from X-register
         new cSignalPair('AC=AL','AL.WU','AC.RU');   //  Load accumulator from ALU
         new cSignalPair('AC=SH','SH.WU','AC.RU');   //  Load accumulator from shift register
+        new cSignalPair('XR=MM','MM.WD','XR.RD');   //  Load X-register from memory address AD
+        new cSignalPair('XR=ML','ML.WD','XR.RD');   //  Load X-register from memory latch
+        new cSignalPair('XR=SP','SP.WD','XR.RD');   //  Load X-register from stack pointer
+        new cSignalPair('XR=AC','AC.WD','XR.RD');   //  Load X-register from accumulator
+        new cSignalPair('XR=AL','AL.WU','XR.RU');   //  Load X-register from ALU
         new cSignalPair('MM=AC','AC.WD','MM.RD');   //  Load memory address AD from accumulator     (write to memory)
+        new cSignalPair('MM=XR','XR.WD','MM.RD');   //  Load memory address AD from X-register      (write to memory)
         new cSignalPair('MM=PC','PC.WD','MM.RD');   //  Load memory address AD from program counter (write to memory)
         new cSignalPair('MM=FL','FL.WD','MM.RD');   //  Load memory address AD from flags           (write to memory)
         new cSignalPair('FL=MM','MM.WD','FL.RD');   //  Load flags from memory address AD
@@ -137,7 +155,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cSignalPair('FL=DB'        ,'FL.DB');   //  Load N     Z flags from data bus
         new cSignalPair('CY=i1'        ,'FL.CY');   //  Read Carry from instruction bit 1
         new cSignalPair('IC.RS'        ,'IC.RS');   //  Reset instruction clock
-        // new cSignalPair('IC.CR'        ,'IC.CR');   //  Conditional reset instruction clock
+        new cSignalPair('sim-error','sim-error');   //  Simulator error, not an actual signal pair
     }
 }
 {// class gCycleSignalSet
@@ -153,7 +171,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     cCycle.prototype.SignalPairs = function() {
         var lPairs = [];
         for (var i = 0; i < this.SignalPairIDs.length; i++) {
-            lPairs.push(gSignalPairs[this.SignalPairIDs[i]]);
+            lPairs.push(cSignalPair.GetPair(this.SignalPairIDs[i]));
         }
         return lPairs;
     }
@@ -172,8 +190,13 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
     }
     //  Class methods
     cCycle.GetCycle = function(pSetName) {
-        try        { return gCycles[pSetName]; }
-        catch(err) { console.log('Cycle ID[\'' + SetID + '\'] not found. '); }
+        if (gCycles[pSetName] == undefined) {
+            console.log('Cycle ID[\'' + pSetName + '\'] not found. ');
+            return gCycles['sim-error'];
+        } else {
+            try        { return gCycles[pSetName]; }
+            catch(err) { console.log('Cycle ID[\'' + pSetName + '\'] not found. '); }
+        }
     }
     cCycle.InitCycles = function() {
         if (gSignalPairs.length == 0) cSignalPair.InitSignalPairs();
@@ -183,14 +206,18 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cCycle('PC=ML'    ,'PC=ML'                      );  //  Jump to location ML
         new cCycle('PC=AL'    ,'PC=AL'                      );  //  Jump to location calculated by ALU for branch
         new cCycle('PC=(SP)'  ,'AD=SP,PC=MM'                );  //  Read program counter from memory location SP
+        new cCycle('AD=AL'    ,'AD=AL'                      );  //  Prepare save to memory location AL
         new cCycle('AD=ML'    ,'AD=ML'                      );  //  Prepare save to memory location ML
         new cCycle('AD=SP'    ,'AD=SP'                      );  //  Prepare save to memory location SP
         new cCycle('ML=(PC)'  ,'AD=PC,ML=MM'                );  //  Read memory latch from memory location PC
         new cCycle('AL=AC±1'  ,'OA=AC,OB,OC'                );  //  Add to or Subtract 1 from accumulator (for INA en DEA)
+        new cCycle('AL=XR±1'  ,'OA=XR,OB,OC'                );  //  Add to or Subtract 1 from X-register  (for INX en DEX)
         new cCycle('LDA #'    ,      'AC=ML,FL=DB,PC++'     );  //  Load accumulator from memory latch and set N- and Z-flag, PC++
-        new cCycle('LDA nn'   ,'AD=ML,AC=MM,FL=DB,PC++'     );  //  Load accumulator from memory location ML and set N,Z-flags, PC++
+        new cCycle('LDA $'    ,'AD=ML,AC=MM,FL=DB,PC++'     );  //  Load accumulator from memory location ML and set N,Z-flags, PC++
         new cCycle('AC=AL'    ,'AC=AL,FL=AL'                );  //  Store calculation result in accumulator and set V,N,C,Z-flags
         new cCycle('AC=SH'    ,'AC=SH,FL=SH'                );  //  Store shift result in accumulator and set N,C,Z-flags
+        new cCycle('LDX #'    ,      'XR=ML,FL=DB,PC++'     );  //  Load X-register from memory latch and set N- and Z-flag, PC++
+        new cCycle('LDX $'    ,'AD=ML,XR=MM,FL=DB,PC++'     );  //  Load X-register from memory location ML and set N,Z-flags, PC++
         new cCycle('FL=(SP)'  ,'AD=SP,FL=MM'                );  //  Load flags from stack (memory address SP)
         new cCycle('FL=A±ML'  ,      'OB=ML,OC,FL=AL'       );  //  Compare ML with accumulator
         new cCycle('FL=A±(ML)','AD=ML,OB=MM,OC,FL=AL'       );  //  Compare (ML) with accumulator
@@ -199,13 +226,21 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cCycle('AC=A·(ML)','AD=ML,OB=MM,OC,AC=AL,FL=NZ' );  //  Logical operation between (ML) and accumulator
         new cCycle('AC=A·ML'  ,      'OB=ML,OC,AC=AL,FL=NZ' );  //  Logical operation between ML and accumulator
         new cCycle('AC=(SP)'  ,'AD=SP,AC=MM,FL=DB'          );  //  Load accumulator from memory location SP
+        new cCycle('AC=(AL)'  ,'AD=AL,AC=MM,FL=DB'          );  //  Load accumulator from memory location AL
         new cCycle('AC=SP'    ,'AC=SP,FL=DB'                );  //  Load accumulator from stack pointer
+        new cCycle('AC=XR'    ,'AC=XR,FL=DB'                );  //  Load accumulator from X-register
+        new cCycle('XR=AC'    ,'XR=AC,FL=DB'                );  //  Load X-register from accumulator
+        new cCycle('XR=AL'    ,'XR=AL,FL=AL'                );  //  Store calculation result in X-register and set V,N,C,Z-flags
+        new cCycle('(AD)=XR'  ,'MM=XR,FL=DB'                );  //  Store X-register  in memory location AD
         new cCycle('(AD)=AC'  ,'MM=AC,FL=DB'                );  //  Store accumulator in memory location AD
         new cCycle('(AD)=FL'  ,'MM=FL'                      );  //  Store flags in memory location AD (PHP)
         new cCycle('(AD)=PC'  ,'MM=PC'                      );  //  Store PC in memory location AD (JSR)
         new cCycle('AL=SP±1'  ,'OA=SP,OB,OC'                );  //  Calculate stack pointer ± 1
+        new cCycle('A=XR|PC++','OA=XR,OC,PC++'              );  //  Calculate AC + C from instruction + increment PC
         new cCycle('A=AC'     ,'OA=AC,OC'                   );  //  Calculate AC + C from instruction
+        new cCycle('A=XR'     ,'OA=XR,OC'                   );  //  Calculate AC + C from instruction
         new cCycle('A=PC'     ,'OA=PC,OC'                   );  //  Calculate PC + C from instruction
+        new cCycle('B=ML'     ,'OB=ML,OC'                   );  //  Calculate A + B + C from instruction
         new cCycle('SH=C<AC>C','OA=AC,OC'                   );  //  Shift accumulator from instruction
         new cCycle('CY=i1'    ,'CY=i1'                      );  //  Read Carry from instruction bit 1
         new cCycle('SP=AL'    ,'SP=AL'                      );  //  Load stack pointer from ALU
@@ -213,6 +248,7 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cCycle('BRA-1'    ,'AD=PC,OB=ML,OC,PC++'        );  //  B=ML, PC++
         new cCycle('JSR-1'    ,'OA=SP,OB,OC,PC++'           );  //  AL=SP+1, PC++
         new cCycle('NOP'      ,undefined                    );  //  No operation
+        new cCycle('sim-error',undefined                    );  //  Simulator error, not an actual cycle
     }
 }
 {// class cInstruction
@@ -237,9 +273,13 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cInstruction('00,00,0111','LSR'   ,'SH=C<AC>C,AC=SH');  //  SH =  0>AC
         new cInstruction('00,01,0001','PLA'   ,'AC=(SP),AL=SP±1,SP=AL');
         new cInstruction('00,01,0011','PHA'   ,'AL=SP±1,SP=AL,AD=SP,(AD)=AC');
-        new cInstruction('00,01,0100','TSA'   ,'AC=SP');
-        new cInstruction('00,01,0101','TAS'   ,'SP=AC');
-        new cInstruction('00,01,0111','NOP'   ,'');
+        new cInstruction('00,01,0100','TXA'   ,'AC=XR');
+        new cInstruction('00,01,0101','INX'   ,'AL=XR±1,XR=AL');
+        new cInstruction('00,01,0110','TAX'   ,'XR=AC');
+        new cInstruction('00,01,0111','DEX'   ,'AL=XR±1,XR=AL');
+        new cInstruction('00,10,0100','TSA'   ,'AC=SP');
+        new cInstruction('00,10,0110','TAS'   ,'SP=AC');
+        new cInstruction('00,10,0111','NOP'   ,'');
         new cInstruction('00,10,0001','RTS'   ,'PC=(SP),AL=SP±1,SP=AL');
         new cInstruction('00,11,0001','PLP'   ,'FL=(SP),AL=SP±1,SP=AL');
         new cInstruction('00,11,0011','PHP'   ,'AL=SP±1,SP=AL,AD=SP,(AD)=FL');
@@ -252,24 +292,31 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         new cInstruction('01,00,1010','EOR #' ,'ML=(PC),A=AC,AC=A·ML,PC++');
         new cInstruction('01,01,0000','LDA #' ,'ML=(PC),LDA #');
         new cInstruction('01,01,0010','CMP #' ,'ML=(PC),A=AC,FL=A±ML,PC++');
-        new cInstruction('11,00,0000','ADC nn','ML=(PC),A=AC,AC=A±(ML),PC++');
-        new cInstruction('11,00,0010','SBC nn','ML=(PC),A=AC,AC=A±(ML),PC++');
-        new cInstruction('11,00,1000','AND nn' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
-        new cInstruction('11,00,1001','ORA nn' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
-        new cInstruction('11,00,1010','EOR nn' ,'ML=(PC),A=AC,AC=A·(ML),PC++');
-        new cInstruction('11,01,0000','LDA nn','ML=(PC),LDA nn');
-        new cInstruction('11,01,0001','STA nn','ML=(PC),AD=ML,(AD)=AC,PC++');
-        new cInstruction('11,01,0010','CMP nn','ML=(PC),A=AC,FL=A±(ML),PC++');
-        new cInstruction('11,10,1000','BCC nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1001','BCS nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1010','BEQ nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1011','BNE nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1100','BVC nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1101','BVS nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1110','BPL nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,10,1111','BMI nn','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
-        new cInstruction('11,11,0000','JMP nn','ML=(PC),PC=ML');
-        new cInstruction('11,11,0011','JSR nn','ML=(PC),JSR-1,SP=AL,AD=SP,(AD)=PC,PC=ML');
+        new cInstruction('01,01,1000','LDX #' ,'ML=(PC),LDX #');
+        new cInstruction('01,01,1010','CPX #' ,'ML=(PC),A=XR,FL=A±ML,PC++');
+        new cInstruction('11,00,0000','ADC $','ML=(PC),A=AC,AC=A±(ML),PC++');
+        new cInstruction('11,00,0010','SBC $','ML=(PC),A=AC,AC=A±(ML),PC++');
+        new cInstruction('11,00,0100','LDA $+X','ML=(PC),A=XR|PC++,B=ML,AC=(AL)');
+        new cInstruction('11,00,0101','STA $+X','ML=(PC),A=XR|PC++,B=ML,AD=AL,(AD)=AC');
+        new cInstruction('11,00,1000','AND $','ML=(PC),A=AC,AC=A·(ML),PC++');
+        new cInstruction('11,00,1001','ORA $','ML=(PC),A=AC,AC=A·(ML),PC++');
+        new cInstruction('11,00,1010','EOR $','ML=(PC),A=AC,AC=A·(ML),PC++');
+        new cInstruction('11,01,0000','LDA $','ML=(PC),LDA $');
+        new cInstruction('11,01,0001','STA $','ML=(PC),AD=ML,(AD)=AC,PC++');
+        new cInstruction('11,01,0010','CMP $','ML=(PC),A=AC,FL=A±(ML),PC++');
+        new cInstruction('11,01,1000','LDX $','ML=(PC),LDX $');
+        new cInstruction('11,01,1001','STX $','ML=(PC),AD=ML,(AD)=XR,PC++');
+        new cInstruction('11,01,1010','CPX $','ML=(PC),A=XR,FL=A±(ML),PC++');
+        new cInstruction('11,10,1000','BCC $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1001','BCS $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1010','BEQ $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1011','BNE $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1100','BVC $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1101','BVS $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1110','BPL $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,10,1111','BMI $','ML=(PC),BRA-1,A=PC,PC=AL');    //  Conditional reset if test fails
+        new cInstruction('11,11,0000','JMP $','ML=(PC),PC=ML');
+        new cInstruction('11,11,0011','JSR $','ML=(PC),JSR-1,SP=AL,AD=SP,(AD)=PC,PC=ML');
     }
     cInstruction.GetInstructionFromMnemonic = function(pMnemonic) {
         var lIns = undefined;
@@ -302,18 +349,26 @@ function SignalID(pUnitName, pSignalName) {return pUnitName + '.' +  pSignalName
         var lMnemonic = this.Mnemonic;
         var lSetIDs = [];
         var lCycles = [];
-        var lIDstring = (pSignalSetIDstring + ',IF=(PC),NEXT').replace(/^,/,"");
+        var lIDstring = (pSignalSetIDstring + ',IF=(PC),NEXT').replace(/^,/,"");    // replace = Verwijder beginkomma
         lSetIDs = lIDstring.split(',');
         lSetIDs.forEach( function(SetID) {
             try        { lCycles.push(cCycle.GetCycle(SetID)); }
-            catch(err) { console.log('Error adding cycle ID[\'' + SetID + '\'] to instruction ' + lMnemonic); }
+            catch(err) { console.log('Instruction ' + lMnemonic + ' Cycle ' + lSetIDs[SetID] + ' ontbreekt' ); }
         });
         return lCycles;
     }
     cInstruction.prototype.GetSignalPairs = function() {
-        lSignalPairs  = [];
+        var lSignalPairs = [];
         for (var i = 0; i < this.Cycles.length; i++) {
-            lSignalPairs.push(this.Cycles[i].SignalPairs());
+            try        { lSignalPairs.push(this.Cycles[i].SignalPairs()); }
+            catch(err) {
+                console.log(err);
+                console.log('Instruction ' + this.Mnemonic + ' Cycle [' + i + '] is missing' );
+                console.log(this);
+                console.log(this.Cycles);
+                console.log('Instruction ' + this.Mnemonic + ' Cycle ' + this.Cycles[i].SetName + ' is missing a SignalPairs' );
+                console.log(this.Cycles[i].SignalPairs());
+            }
             if (i + 1 == this.Cycles.length)
                 lSignalPairs.push(gSignalPairs['IC.RS']);
         }
@@ -453,8 +508,10 @@ function Init65MINE01() {
         CPU.AL = new cAL(384,320+20);
         CPU.SH = new cSH(384,320+40+24+40);
         CPU.AC = new cAC(280,520);
+        CPU.XR = new cXR(280,600);
+        CPU.YR = new cYR(280,680);
         CPU.MM = new cMM(720, 30);
-        CPU.AD = new cAD(720,120);
+        CPU.AD = new cAD(720,264);
     }
     cUnit.DrawUnits = function() { Object.keys(gUnits).forEach( function(ID) { gUnits[ID].Draw(); }); }
     cUnit.prototype.SetValue = function(pValue) { this.Value = pValue; this.SetBits(); }
@@ -778,14 +835,14 @@ function Init65MINE01() {
         // var lIns   = gInstructions[lIR.Value];
         // var lBranch;
         // switch (lIns.Mnemonic) {
-            // case 'BEQ nn' : lBranch = !lFL.Flag('Z'); break;
-            // case 'BNE nn' : lBranch =  lFL.Flag('Z'); break;
-            // case 'BCC nn' : lBranch = !lFL.Flag('C'); break;
-            // case 'BCS nn' : lBranch =  lFL.Flag('C'); break;
-            // case 'BVC nn' : lBranch = !lFL.Flag('V'); break;
-            // case 'BVS nn' : lBranch =  lFL.Flag('V'); break;
-            // case 'BPL nn' : lBranch = !lFL.Flag('N'); break;
-            // case 'BMI nn' : lBranch =  lFL.Flag('N'); break;
+            // case 'BEQ $' : lBranch = !lFL.Flag('Z'); break;
+            // case 'BNE $' : lBranch =  lFL.Flag('Z'); break;
+            // case 'BCC $' : lBranch = !lFL.Flag('C'); break;
+            // case 'BCS $' : lBranch =  lFL.Flag('C'); break;
+            // case 'BVC $' : lBranch = !lFL.Flag('V'); break;
+            // case 'BVS $' : lBranch =  lFL.Flag('V'); break;
+            // case 'BPL $' : lBranch = !lFL.Flag('N'); break;
+            // case 'BMI $' : lBranch =  lFL.Flag('N'); break;
             // default: alert('Unexpected conditional reset found for instruction ' + lIns.Mnemonic); break;
         // }
         // if (!lBranch) this.Reset();   //  If branch is not taken, get next instruction
@@ -867,7 +924,7 @@ function Init65MINE01() {
 }
 {// class cIR
     function IR() {}
-    IR.Reset = function() { gUnits['IR'].Value = parseInt('11110000',2); } // gInstructions['JMP nn'].Opcode()
+    IR.Reset = function() { gUnits['IR'].Value = parseInt('11110000',2); } // gInstructions['JMP $'].Opcode()
     IR.Instruction = function() { return gUnits['IR'].Instruction(); }
     function cIR(pX,pY) {
         cUnit.call(this,'IR',pX,pY,['RI'],['f3','f2','f1','f0']);
@@ -880,7 +937,7 @@ function Init65MINE01() {
     cIR.prototype.Mnemonic    = function() { return this.Instruction().Mnemonic; }
     cIR.prototype.Instruction = function() {
         try        { return gInstructions[this.Value]; }
-        catch(err) { alert('Fout ' + err + 'bij het opvragen van instructie ' + toString(this.Value)); }
+        catch(err) { alert('Fout ' + err + 'bij het opvragen van instructie ' + toBin(this.Value)); }
     }
     cIR.prototype.Cycle = function(pCycle) {
         var lSetName;
@@ -888,14 +945,14 @@ function Init65MINE01() {
         var lIns = this.Instruction();
         if (iCycle > 1) {
             switch (lIns.Mnemonic) {
-                case 'BEQ nn' : if ( CPU.FL.Flag('Z')) iCycle += 2; break; // Skip branch cycles if non-zero
-                case 'BNE nn' : if (!CPU.FL.Flag('Z')) iCycle += 2; break; // Skip branch cycles if     zero
-                case 'BCC nn' : if ( CPU.FL.Flag('C')) iCycle += 2; break; // Skip branch cycles if    carry
-                case 'BCS nn' : if (!CPU.FL.Flag('C')) iCycle += 2; break; // Skip branch cycles if no carry
-                case 'BVC nn' : if ( CPU.FL.Flag('V')) iCycle += 2; break; // Skip branch cycles if    overflow
-                case 'BVS nn' : if (!CPU.FL.Flag('V')) iCycle += 2; break; // Skip branch cycles if no overflow
-                case 'BPL nn' : if ( CPU.FL.Flag('N')) iCycle += 2; break; // Skip branch cycles if negative
-                case 'BMI nn' : if (!CPU.FL.Flag('N')) iCycle += 2; break; // Skip branch cycles if positive
+                case 'BEQ $' : if ( CPU.FL.Flag('Z')) iCycle += 2; break; // Skip branch cycles if non-zero
+                case 'BNE $' : if (!CPU.FL.Flag('Z')) iCycle += 2; break; // Skip branch cycles if     zero
+                case 'BCC $' : if ( CPU.FL.Flag('C')) iCycle += 2; break; // Skip branch cycles if    carry
+                case 'BCS $' : if (!CPU.FL.Flag('C')) iCycle += 2; break; // Skip branch cycles if no carry
+                case 'BVC $' : if ( CPU.FL.Flag('V')) iCycle += 2; break; // Skip branch cycles if    overflow
+                case 'BVS $' : if (!CPU.FL.Flag('V')) iCycle += 2; break; // Skip branch cycles if no overflow
+                case 'BPL $' : if ( CPU.FL.Flag('N')) iCycle += 2; break; // Skip branch cycles if negative
+                case 'BMI $' : if (!CPU.FL.Flag('N')) iCycle += 2; break; // Skip branch cycles if positive
                 default:                                            break; // Ignore for other instructions
             }
         }
@@ -933,9 +990,25 @@ function Init65MINE01() {
             lValue = Math.floor(lValue / 2);
         }
     }
+    cIR.prototype.CheckValue = function() {
+        try {
+            var lInstruction = gInstructions[this.Value];
+        } catch(err) {
+            lInstruction = undefined;
+            alert('Fout ' + err + 'bij het opvragen van instructie ' + toBin(this.Value));
+        }
+        if (lInstruction == undefined) {
+            alert('Onbekende instructie ' + toBin(this.Value));
+            CPU.Halt();
+        }
+    }
     cIR.prototype.ProcessInput = function(pSignal) {
         switch(pSignal.SignalName) {
-            case 'RI' : this.SetValue(gBusses['IB'].Value); this.SetOutputs(); break;
+            case 'RI' :
+                this.SetValue(gBusses['IB'].Value);
+                this.SetOutputs();
+                this.CheckValue();
+                break;
         }
     }
 }
@@ -962,19 +1035,18 @@ function Init65MINE01() {
 }
 {// class cAD
     function cAD(pX,pY) {
-        cUnit.call(this,'AD',pX,pY,['RA']);
+        cUnit.call(this,'AD',pX,pY,['RA','RU']);
         gUnits['AD'] = this;
     }
     cAD.prototype = Object.create(cUnit.prototype);
-    cAD.prototype.Tick = function() {
-        var lSignalID;
-        for (var i = 0; i < this.Inputs.length; i++) {
-            lSignalID = SignalID('AD',this.Inputs[i]);
-            if (gSignals[lSignalID].Level == 1) {
-                switch(this.Inputs[i]) {
-                    case 'RA' :                       this.Value = gBusses['AB'].Value; break;
-                }
-            }
+    cAD.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Calculate and Write to Bus phase
+            case 'RA' : this.Value = gBusses['AB'].Value; break;
+            case 'RU' : this.Value = gBusses['UB'].Value; break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from Bus phase
+            case 'RA' : this.Value = gBusses['AB'].Value; break;
+            case 'RU' : this.Value = gBusses['UB'].Value; break;
         }
     }
 }
@@ -1013,19 +1085,38 @@ function Init65MINE01() {
             case 'RU' : this.Value = gBusses['UB'].Value; break;
         }
     }
-    // cAC.prototype.Tick = function() {
-        // var lSignalID;
-        // for (var i = 0; i < this.Inputs.length; i++) {
-            // lSignalID = SignalID('AC',this.Inputs[i]);
-            // if (gSignals[lSignalID].Level == 1) {
-                // switch(this.Inputs[i]) {
-                    // case 'RU' :                       this.Value = gBusses['UB'].Value; break;
-                    // case 'RD' :                       this.Value = gBusses['DB'].Value; break;
-                    // case 'WD' : gBusses['DB'].Value = this.Value;                       break;
-                // }
-            // }
-        // }
-    // }
+}
+{// class X-register
+    function cXR(pX,pY) {
+        cUnit.call(this,'XR',pX,pY,['RD','WD','RU']);
+        gUnits['XR'] = this;
+    }
+    cXR.prototype = Object.create(cUnit.prototype);
+    cXR.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase
+            case 'WD' : gBusses['DB'].Value = this.Value; break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+            case 'RD' : this.Value = gBusses['DB'].Value; break;
+            case 'RU' : this.Value = gBusses['UB'].Value; break;
+        }
+    }
+}
+{// class Y-register
+    function cYR(pX,pY) {
+        cUnit.call(this,'YR',pX,pY,['RD','WD','RU']);
+        gUnits['YR'] = this;
+    }
+    cYR.prototype = Object.create(cUnit.prototype);
+    cYR.prototype.ProcessInput = function(pSignal, pPhi1, pPhi2) {
+        if (pPhi1 == 1) switch(pSignal.SignalName) {    //  Write to bus phase
+            case 'WD' : gBusses['DB'].Value = this.Value; break;
+        }
+        if (pPhi2 == 1) switch(pSignal.SignalName) {    //  Read from bus phase
+            case 'RD' : this.Value = gBusses['DB'].Value; break;
+            case 'RU' : this.Value = gBusses['UB'].Value; break;
+        }
+    }
 }
 {// class cFL
     function cFL(pX,pY) {
@@ -1282,8 +1373,8 @@ function Init65MINE01() {
     }
     cSH.prototype.Tick = function() {
 
-        if (CPU.IR.Instruction().Mnemonic == 'ROR')
-            var lBreakpoint = true;
+        // if (CPU.IR.Instruction().Mnemonic == 'ROR')
+            // var lBreakpoint = true;
 
         var lSignalID;
         var FlagShiftRight = (gUnits['IR'].Bit1() == '1');
@@ -1313,23 +1404,25 @@ function Init65MINE01() {
         gUnits['MM'] = this;
         var Values;
         this.Values = [];
+        this.Mnemonics = [];
         for (var i = 0; i < 256; i++) this.Values.push(Math.floor(Math.random() * 256));
+        for (var i = 0; i < 256; i++) this.Mnemonics.push('');
         this.Values[255] = parseInt('10000000',2); // Reset vector naar $80
         this.Values[10]  = parseInt('01001110',2); // Startwaarde van te verhogen waarde
         this.Values[10]  = parseInt('11111110',2); // Startwaarde van te verhogen waarde
         var lPC = parseInt('10000000',2);
      // this.Values[lPC++] = parseInt('00010101',2); // TAS    instructie
-        this.Values[lPC++] = parseInt('11010000',2); // LDA nn instructie
-        this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
+        this.Values[lPC++] = parseInt('11010000',2); // LDA $ instructie
+        this.Values[lPC++] = parseInt('00001010',2); //     $ = $0A
         this.Values[lPC++] = parseInt('00000001',2); // INA    instructie
-        this.Values[lPC++] = parseInt('11010001',2); // STA nn instructie
-        this.Values[lPC++] = parseInt('00001010',2); //     nn = $0A
-        this.Values[lPC++] = parseInt('11101011',2); // BNE nn instructie
-        this.Values[lPC++] = parseInt('11111001',2); //     nn = $F9
-     // this.Values[lPC++] = parseInt('11111000',2); //     nn = $F8
+        this.Values[lPC++] = parseInt('11010001',2); // STA $ instructie
+        this.Values[lPC++] = parseInt('00001010',2); //     $ = $0A
+        this.Values[lPC++] = parseInt('11101011',2); // BNE $ instructie
+        this.Values[lPC++] = parseInt('11111001',2); //     $ = $F9
+     // this.Values[lPC++] = parseInt('11111000',2); //     $ = $F8
      // this.Values[lPC++] = parseInt('00010100',2); // TSA    instructie
-        this.Values[lPC++] = parseInt('11110000',2); // JMP nn instructie
-        this.Values[lPC++] = parseInt('10000000',2); //     nn = $80
+        this.Values[lPC++] = parseInt('11110000',2); // JMP $ instructie
+        this.Values[lPC++] = parseInt('10000000',2); //     $ = $80
     }
     cMM.prototype = Object.create(cUnit.prototype);
     cMM.prototype.GetValue = function() { return this.Values[gUnits['AD'].Address()]; }
@@ -1345,10 +1438,13 @@ function Init65MINE01() {
     cMM.prototype.Draw = function() {
         this.Value = this.GetValue();
         cUnit.prototype.Draw.call(this);
-        var lID = '';
+        var lID   = '';
+        var lHTML = '';
         for (var i = 0; i < this.Values.length; i++) {
             lID = 'mm' + toHex(i);
-            document.getElementById(lID).innerHTML = toHex(this.Values[i]);
+            lHTML = toHex(this.Values[i]);
+            if (this.Mnemonics[i] != '') lHTML += '<br /><span class="mnemonic">' + this.Mnemonics[i] + '</span>'
+            document.getElementById(lID).innerHTML = lHTML;
         }
         this.HighlightAddress('SP', 'green');
         this.HighlightAddress('PC', 'blue' );
@@ -1367,15 +1463,33 @@ function Init65MINE01() {
         }
     }
     cMM.prototype.Program = function(lInstructionString) {
+        var lMnemonic;
+        var lOperand;
         var lIns;
         var lPC = parseInt('10000000',2);
         var lBytes = lInstructionString.split(',');
+        for (var i = 0; i < 256; i++) this.Mnemonics.push('');
         for (var i=0; i < lBytes.length; i++) {
-            lIns = cInstruction.GetInstructionFromMnemonic(lBytes[i]);
+            if (lBytes[i].substring(4,5) == '#') {
+                lMnemonic = lBytes[i].substring(0,5);
+                lOperand  = lBytes[i].substring(5,7);
+            } else if (lBytes[i].substring(4,5) == '$') {
+                if (lBytes[i].substring(7,8) == '+') { lMnemonic = lBytes[i].substring(0,5) + lBytes[i].substring(7,9); }
+                else                                 { lMnemonic = lBytes[i].substring(0,5); }
+                lOperand  = lBytes[i].substring(5,7);
+            } else {
+                lMnemonic = lBytes[i];
+                lOperand  = '';
+            }
+            lIns = cInstruction.GetInstructionFromMnemonic(lMnemonic);
             if (lIns == undefined) {
                 this.Values[lPC++] = parseInt(lBytes[i],16);
             } else {
-                this.Values[lPC++] = lIns.Value;
+                this.Mnemonics[lPC] = lMnemonic;
+                this.Values[lPC++]  = lIns.Value;
+                if (lOperand != '') {
+                    this.Values[lPC++] = parseInt(lOperand,16);
+                }
             }
         }
         CPU.Reset();
@@ -1398,61 +1512,64 @@ function ProcessSignals() {
 }
 UNITTEST = function(pMnemonic) {
     switch (pMnemonic) {
-        case 'INA'   : CPU.MM.Program('LDA #,00,INA,JMP nn,82'); break;
-        case 'DEA'   : CPU.MM.Program('LDA #,00,DEA,JMP nn,82'); break;
-        case 'ROL'   : CPU.MM.Program('SEC,LDA #,00,ROL,JMP nn,83'); break;
-        case 'ASL'   : CPU.MM.Program('SEC,LDA #,01,ASL,JMP nn,83'); break;
-        case 'ROR'   : CPU.MM.Program('SEC,LDA #,04,ROR,JMP nn,83'); break;
-        case 'LSR'   : CPU.MM.Program('SEC,LDA #,80,LSR,JMP nn,83'); break;
-        case 'PLA'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
-        case 'PHA'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
-        case 'TSA'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
-        case 'TAS'   : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP nn,83'); break;
-        case 'NOP'   : CPU.MM.Program('NOP,JMP nn,80'); break;
-        case 'RTS'   : CPU.MM.Program('LDA #,FE,TAS,JSR nn,87,JMP nn,83,RTS'); break;
-        case 'PLP'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
-        case 'PHP'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
-        case 'CLC'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
-        case 'SEC'   : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP nn,83'); break;
-        case 'ADC #' : CPU.MM.Program('LDA #,00,CLC,ADC #,01,SEC,ADC #,0F,JMP nn,82'); break;
-        case 'SBC #' : CPU.MM.Program('LDA #,00,SEC,SBC #,01,CLC,SBC #,0F,JMP nn,82'); break;
-        case 'AND #' : CPU.MM.Program('LDA #,FF,AND #,AA,JMP nn,80'); break;
-        case 'ORA #' : CPU.MM.Program('LDA #,88,ORA #,22,JMP nn,80'); break;
-        case 'EOR #' : CPU.MM.Program('LDA #,AA,EOR #,F0,JMP nn,80'); break;
-        case 'LDA #' : CPU.MM.Program('LDA #,00,LDA #,01,LDA #,80,JMP nn,80'); break;
+        case 'INA'    : CPU.MM.Program('LDA #,00,INA,JMP $,82'); break;
+        case 'DEA'    : CPU.MM.Program('LDA #,00,DEA,JMP $,82'); break;
+        case 'ROL'    : CPU.MM.Program('SEC,LDA #,00,ROL,JMP $,83'); break;
+        case 'ASL'    : CPU.MM.Program('SEC,LDA #,01,ASL,JMP $,83'); break;
+        case 'ROR'    : CPU.MM.Program('SEC,LDA #,04,ROR,JMP $,83'); break;
+        case 'LSR'    : CPU.MM.Program('SEC,LDA #,80,LSR,JMP $,83'); break;
+        case 'PLA'    : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP $,83'); break;
+        case 'PHA'    : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP $,83'); break;
+        case 'TSA'    : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP $,83'); break;
+        case 'TAS'    : CPU.MM.Program('LDA #,FE,TAS,LDA #,01,PHA,TSA,PLA,JMP $,83'); break;
+        case 'NOP'    : CPU.MM.Program('NOP,JMP $,80'); break;
+        case 'RTS'    : CPU.MM.Program('LDA #,FE,TAS,JSR $,87,JMP $,83,RTS'); break;
+        case 'PLP'    : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP $,83'); break;
+        case 'PHP'    : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP $,83'); break;
+        case 'CLC'    : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP $,83'); break;
+        case 'SEC'    : CPU.MM.Program('LDA #,FE,TAS,CLC,LDA #,00,PHP,SEC,LDA #,01,PLP,JMP $,83'); break;
+        case 'ADC #'  : CPU.MM.Program('LDA #,00,CLC,ADC #,01,SEC,ADC #,0F,JMP $,82'); break;
+        case 'SBC #'  : CPU.MM.Program('LDA #,00,SEC,SBC #,01,CLC,SBC #,0F,JMP $,82'); break;
+        case 'AND #'  : CPU.MM.Program('LDA #,FF,AND #,AA,JMP $,80'); break;
+        case 'ORA #'  : CPU.MM.Program('LDA #,88,ORA #,22,JMP $,80'); break;
+        case 'EOR #'  : CPU.MM.Program('LDA #,AA,EOR #,F0,JMP $,80'); break;
+        case 'LDA #'  : CPU.MM.Program('LDA #,00,LDA #,01,LDA #,80,JMP $,80'); break;
+        case 'LDX #'  : CPU.MM.Program('LDX #00,STX $00,STX $01,LDX $00,INX,STX $00,LDX $01,DEX,STX $01,JMP $86'); break;
+        case 'LDA,X'  : CPU.MM.Program('LDX #00,LDA #00,STA $00+X,INX,JMP $84'); break;
+        case 'Illegal': CPU.MM.Program('00,JMP $,80'); break;
         // case 'CMP #' : CPU.MM.Program('CMP #'
-        // case 'ADC nn': CPU.MM.Program('ADC nn'
-        // case 'SBC nn': CPU.MM.Program('SBC nn'
-        // case 'AND nn': CPU.MM.Program('AND nn'
-        // case 'ORA nn': CPU.MM.Program('ORA nn'
-        // case 'EOR nn': CPU.MM.Program('EOR nn'
-        // case 'LDA nn': CPU.MM.Program('LDA nn'
-        // case 'STA nn': CPU.MM.Program('STA nn'
-        // case 'CMP nn': CPU.MM.Program('CMP nn'
-        // case 'BCC nn': CPU.MM.Program('BCC nn'
-        // case 'BCS nn': CPU.MM.Program('BCS nn'
-        // case 'BEQ nn': CPU.MM.Program('BEQ nn'
-        // case 'BNE nn': CPU.MM.Program('BNE nn'
-        // case 'BVC nn': CPU.MM.Program('BVC nn'
-        // case 'BVS nn': CPU.MM.Program('BVS nn'
-        // case 'BPL nn': CPU.MM.Program('BPL nn'
-        // case 'BMI nn': CPU.MM.Program('BMI nn'
-        case 'JMP nn': CPU.MM.Program('JMP nn,80'); break;
-        case 'JSR nn': CPU.MM.Program('LDA #,FE,TAS,JSR nn,87,JMP nn,83,RTS'); break;
+        // case 'ADC $': CPU.MM.Program('ADC $'
+        // case 'SBC $': CPU.MM.Program('SBC $'
+        // case 'AND $': CPU.MM.Program('AND $'
+        // case 'ORA $': CPU.MM.Program('ORA $'
+        // case 'EOR $': CPU.MM.Program('EOR $'
+        // case 'LDA $': CPU.MM.Program('LDA $'
+        // case 'STA $': CPU.MM.Program('STA $'
+        // case 'CMP $': CPU.MM.Program('CMP $'
+        // case 'BCC $': CPU.MM.Program('BCC $'
+        // case 'BCS $': CPU.MM.Program('BCS $'
+        // case 'BEQ $': CPU.MM.Program('BEQ $'
+        // case 'BNE $': CPU.MM.Program('BNE $'
+        // case 'BVC $': CPU.MM.Program('BVC $'
+        // case 'BVS $': CPU.MM.Program('BVS $'
+        // case 'BPL $': CPU.MM.Program('BPL $'
+        // case 'BMI $': CPU.MM.Program('BMI $'
+        case 'JMP $': CPU.MM.Program('JMP $,80'); break;
+        case 'JSR $': CPU.MM.Program('LDA #,FE,TAS,JSR $,87,JMP $,83,RTS'); break;
     }
 }
 {// 3n+1
     Collatz = function() {}
     Collatz.Init = function() {
         var lProgram = '';
-        // lProgram += 'LDA #,00,STA nn,X,JSR nn,STA X,JSR nn,INC X,INA,BPL,84,JMP nn,00';
+        // lProgram += 'LDA #,00,STA $,X,JSR $,STA X,JSR $,INC X,INA,BPL,84,JMP $,00';
         // STA X = 8D
         //     X = 8E
         // INC X = 90
         lProgram += 'LDA #,FF,TAS';
-        lProgram += ',LDA #,00,STA nn,91,JSR nn,90,JSR nn,93,INA,BPL nn,F7,JMP nn,83';
-        lProgram += ',STA nn,FF,RTS';
-        lProgram += ',PHA,LDA nn,91,INA,STA nn,91,PLA,RTS';
+        lProgram += ',LDA #,00,STA $,91,JSR $,90,JSR $,93,INA,BPL $,F7,JMP $,83';
+        lProgram += ',STA $,FF,RTS';
+        lProgram += ',PHA,LDA $,91,INA,STA $,91,PLA,RTS';
         CPU.MM.Program(lProgram);
     }
 }

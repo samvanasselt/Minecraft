@@ -7,6 +7,12 @@
 <body onload="Init65MINE01()">
     <div class="divleft"><canvas id="cpu"  width="840" height="800">Canvas wordt niet ondersteund door deze browser</canvas></div>
     <div class="memory">
+    <div class="control">
+        <button onclick="CPU.Run()" >Run</button>
+        <button onclick="CPU.Halt()">Halt</button>
+        <button id="button-next"    onclick="CPU.Next()"   >Next</button>
+        <button id="button-process" onclick="CPU.Process()">Process</button>
+    </div>
         <table>
             <tr><th>00</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr>
             <tr><th>0</th><td id="mm00">0</td><td id="mm01">1</td><td id="mm02">2</td><td id="mm03">3</td><td id="mm04">4</td><td id="mm05">5</td><td id="mm06">6</td><td id="mm07">7</td><td id="mm08">8</td><td id="mm09">9</td><td id="mm0A">A</td><td id="mm0B">B</td><td id="mm0C">C</td><td id="mm0D">D</td><td id="mm0E">E</td><td id="mm0F">F</td></tr>
@@ -31,10 +37,6 @@
         <div class="instruction">
             <p>
                 <b>Instruction - Cycle - Signal</b>
-                <button onclick="CPU.Run()" >Run</button>
-                <button onclick="CPU.Halt()">Halt</button>
-                <button id="button-next"    onclick="CPU.Next()"   >Next</button>
-                <button id="button-process" onclick="CPU.Process()">Process</button>
             </p>
             <p id="instruction-info"></p>
         </div>
@@ -62,6 +64,9 @@
         <button id="unittest-jmp" onclick="UNITTEST('ORA #')">ORA #</button>
         <button id="unittest-jmp" onclick="UNITTEST('EOR #')">EOR #</button>
         <button id="unittest-jmp" onclick="UNITTEST('LDA #')">Flags DB</button>
+        <button id="unittest-jmp" onclick="UNITTEST('LDX #')">X</button>
+        <button id="unittest-jmp" onclick="UNITTEST('LDA,X')">A,X</button>
+        <button id="unittest-jmp" onclick="UNITTEST('Illegal')">Illegal</button>
     </div>
     <div class="hidden"><p><img id="65MINE01-schema" src="65MINE01.jpg" alt="65MINE01 Schema"></p></div>
     <!--
