@@ -1201,53 +1201,45 @@ function NameLastSignal(pName) {
 function DoorInit() {
     gBlocks = [];
     gSignals = [];
-    PhaseClockInit(2);
+    lPulsars = PulseUnit('P', 2, 40, 2);
     lDoor = new cUnit('Door', gBlocks.length);
-    new cWire    ([0,2,0], 'ES');
-    new cWire    ([1,2,0], 'EW');
-    new cWire    ([2,2,0], 'EW');
-    new cWire    ([3,2,0], 'EW');
-    new cWire    ([4,2,0], 'EW');
-    new cWire    ([5,2,0], 'EW');
-    new cWire    ([6,2,0], 'EW');
-    new cWire    ([7,2,0], 'WS');
+    new cWir3    ([0,1,0], 'ES');
+    for (var i=1; i<5; i++) new cWir3([i,1,0], 'EW');
+    new cWir3    ([5,1,0], 'WS');
 
-    new cWire    ([0,3,1], 'EN');
-    new cWire    ([1,4,1], 'EW');
-    new cBlock    ([2,4,1], 'sandstone', 0);
-    new cBlock    ([5,4,1], 'sandstone', 0);
-    new cWire    ([6,4,1], 'EW');
-    new cWire    ([7,3,1], 'WNS');
+    new cWir3    ([0,2,1], 'EN');
+    new cBlock   ([2,3,1], 'sandstone', 0, 'Door.R');
+    new cBlock   ([3,3,1], 'sandstone', 0, 'Door.L');
+    new cWir3    ([4,3,1], 'EW');
+    new cWir3    ([5,2,1], 'WNS');
+    //  Button blocks and signals
+    new cBlock   ([1,4,1], 'sandstone', 0, 'Knop.R', ['P.Q1']);
+    new cWir3    ([1,3,1], 'EWU');
 
-    new cWire    ([2,3,2], 'NS');
-    new cWire    ([5,3,2], 'NS');
-    new cWire    ([7,3,2], 'NS');
-
-    new cWire    ([2,2,3], 'EN');
-    new cWire    ([3,2,3], 'WE');
-    new cWire    ([4,2,3], 'WE');
-    new cWire    ([5,2,3], 'WENS');
-    new cRedTorch([6,2,3], 'W'  , '006002003', ['Phi-0']);
-    new cWire    ([7,3,3], 'WNS', 'sandstone');
-
-    new cWire    ([5,2,4], 'NS');
-    new cWire    ([7,2,4], 'NS');
-
-    new cBlock   ([5,2,5], 'sandstone', 0);
-    new cRedTorch([6,2,5], 'E' , '006002005', ['Phi-1']);
-    new cWire    ([7,2,5], 'WN');
-
+    new cBlock   ([4,4,1], 'sandstone', 0, 'Knop.L', ['P.Q0']);
+    //  Pressure plates
+    new cBlock   ([2,3,2], 'sandstone', 0, 'Plate.L', ['P.R1']); //  Blocks under pressure plate
+    new cBlock   ([3,3,2], 'sandstone', 0, 'Plate.R', ['P.R0']);
+    new cWir3    ([2,2,2], 'EW');       //  Wires under pressure plate blocks
+    new cWir3    ([3,2,2], 'EWS');
+    new cBlock   ([2,1,2], 'sandstone', 0);
+    //  Set / Reset unit
+    new cBlock   ([3,1,2], 'sandstone', 0);
+    new cRedTorch([4,1,2], 'E'  , '006002003', ['P.Q0']);
+    new cWir3    ([5,1,2], 'WNS');
+    new cWir3    ([5,1,3], 'NS');
+    new cBlock   ([5,1,4], 'sandstone', 0);
+    new cRedTorch([4,1,4], 'W'  , '006002003', ['P.R0']);
+    new cWir3    ([3,1,4], 'EN');
+    new cWir3    ([3,1,3], 'NS');
+    //
     lDoor.SetIndexLastBlock(gBlocks.length);
-    for (i = lDoor.IndexFirstBlock; i < lDoor.IndexLastBlock; i++) { gBlocks[i].Location.Z += 8; }
-
 }
 function DoorSignals() {
     DoorInit();
     SetSignalsToShow
-    ('CK'
-    , 'Phi-0', '006002003'
-    , 'Phi-1', '006002005'
-    ,'000002000', '005002003'
+    ( 'P.Q0', 'P.R0', 'Knop.L', 'Knop.R'
+    // , '000002000', '005002003'
     );
     Signaal('DR');
 }

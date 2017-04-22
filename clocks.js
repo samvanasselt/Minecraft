@@ -300,6 +300,12 @@ function PulseUnit( pUnitName, nPulsars = 1, pInterval = 2, pPulseLength = 1, pD
         new cPulsar(pUnitName + '.Q' + i, lInterval, pPulseLength, lDelay);
         lInterval *= 2;
     }
+    var lInterval = pInterval;
+    for (var i = 0; i < nPulsars; i++) {
+        var lDelay = (i < pDelays.length) ? pDelays[i] : 0;
+        new cPulsar(pUnitName + '.R' + i, lInterval, pPulseLength, lInterval / 2 + lDelay);
+        lInterval *= 2;
+    }
     lPulse.SetIndexLastBlock(gBlocks.length);
     return lPulse;
 }
